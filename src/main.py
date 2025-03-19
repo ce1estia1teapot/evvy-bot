@@ -1,32 +1,37 @@
+import configparser
+import datetime
 import discord
 import logging.config
+import os
+import discord.ext.commands
+import yaml
 
-from modules.bot_config_loader.main import BotConfigLoader
+from configparser import ConfigParser
+from datetime import datetime as DateTime
+from discord import User, Member, Guild, TextChannel, Message, Intents
+from typing import Dict, List, Union
 
-# Client Definition
-class FjunnyClient(discord.Client):
-    settings : BotConfigLoader
+import discord.ext
 
-    def __init__(self, p_config_path : str, p_secrets_path : str, intents, **options):
-        super().__init__(intents=intents, **options)
+# ==== GLOBALS ====
+global main_logger
 
-        self.settings = BotConfigLoader(p_config_path, p_secrets_path)
+# ==== CLASSES ====
 
+class EvvyClient(discord.Client):
     async def on_ready(self):
-        datetimeString = utils.get_current_datetime_string()
-        logMessage: str = f'{datetimeString} Logged in as: {self}\n'
+        logMessage : str = f'Logged in as: {self}\n'
 
-        print(logMessage)
+        main_logger.info(logMessage)
 
         # List Connected guilds
-        print(f'{utils.get_current_datetime_string()} ===== Connected to Guilds: =====')
+        main_logger.info('===== Connected to Guilds: =====')
         for guild in self.guilds:
-            print(f'{utils.get_current_datetime_string()} {guild.name} ({len(guild.members)} members)')
-
-        print('\n')
+            info_string : str = f' {guild.name} ({len(guild.members)} members)'
+            main_logger.info(info_string)
 
     async def on_guild_join(self, p_guild: Guild):
-        print(f'{utils.get_current_datetime_string()} *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
+        print(f' *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
 
         textChannels = []
         for channel in p_guild.channels:
@@ -38,21 +43,66 @@ class FjunnyClient(discord.Client):
             await channel.send(content='Bot Online!')
 
     async def on_guild_remove(self, p_guild: Guild):
-        print(f'{utils.get_current_datetime_string()} *** Removed From Guild: {p_guild.name} ***')
+        print(f' *** Removed From Guild: {p_guild.name} ***')
 
-    async def on_message(self, p_message: Message):
-        pass
 
-    async def on_typing(self, p_channel: TextChannel, p_user: [User, Member], p_when: DateTime):
-        pass
+def setup_logging() -> None:
+    # Create Logs directory if it doesn't exist
+    if not os.path.isdir('logs\\'):
+        os.mkdir('logs')
+
+    with open(file='config\\logging_config.yaml', mode='r') as file:
+        try:
+            # Setting up using config...
+            config: Dict = yaml.safe_load(file)
+            logging.config.dictConfig(config)
+
+        except Exception as e:
+            main_logger.exception(f'Unable to configure logging: {e}')
+
+        
+
+        main_logger.debug('Logging initialized')
+
+def retrieve_bot_token(p_secrets_path : str) -> str:
+    if os.path.isfile(p_secrets_path):
+        secrets_parser : ConfigParser = ConfigParser()
+        secrets_parser.read(p_secrets_path)
+
+        try:
+            token : str = secrets_parser['SECRETS']['token']
+            return token
+        except Exception as e:
+            main_logger.exception(f'Trouble accessing token in secrets loader: {secrets_parser}')
+
+    else:
+        main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
 
 
 def main():
-    pass
+    global main_logger
 
+    # 1. Setup Logging
+    main_logger = logging.getLogger(name='main_logger')
+    setup_logging()
+
+    # 2. Grab bot token out of secrets file
+    secrets_filepath : str = 'config\\secrets.cfg'
+    bot_token : str = retrieve_bot_token(secrets_filepath)
+
+    # 3. Load bot configuration
+    config_path : str = 'config\\bot_config.ini'
+    bot_config : ConfigParser = ConfigParser()
+    bot_config.read(config_path)
+
+    # 4. Create Bot Client and run
+    intents = discord.Intents.default()
+    intents.members = True
+    intents.message_content = True
+
+    evvy_client : EvvyClient = EvvyClient(intents=intents)
+    
+    evvy_client.run(bot_token)
 
 if __name__ == "__main__":
-    
-    
-        
     main()
