@@ -29,7 +29,7 @@ class EvvyClient(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
         self.token = p_token
-    
+
     #region ==== EVENT CALLBACKS ====
     async def on_ready(self):
         """
@@ -99,7 +99,15 @@ class EvvyClient(discord.Client):
         
         await interaction.response.send_message("Here is an interactive button!", view=ButtonView())
     #endregion
+
+    #region ==== CLASS METHODS ====
+    @classmethod
+    def bind_commands_to_client(cls, p_client) -> None:
+        p_client.tree.add_command(EvvyClient.echo)
+        p_client.tree.add_command(EvvyClient.button_example)
+    #endregion
 #endregion
+
 
 
 #region ==== RUN THE BOT ====
@@ -118,11 +126,12 @@ if __name__ == "__main__":
     bot_config : ConfigParser = ConfigParser()
     bot_config.read(config_path)
 
-    # 4. Create intents, create client
+    # 4. Create intents, create client, bind commands, run client
     intents = discord.Intents.default()
     intents.members = True
     intents.message_content = True
 
     evvy_client : EvvyClient = EvvyClient(p_intents=intents, p_token=bot_token)
+    EvvyClient.bind_commands_to_client(evvy_client)
     evvy_client.run(bot_token)
 #endregion
