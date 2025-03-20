@@ -13,114 +13,116 @@ from discord import Interaction, InteractionType
 from discord.ext.commands import Bot
 from typing import Dict, List, Union
 
-from bot_utils import retrieve_bot_token
-
-# ==== FUNCTIONS ====
-
+from bot_utils import retrieve_bot_token, setup_logging
 
 # ==== GLOBALS ====
 global main_logger
-global evvy_bot
+global evvy_client
 
-# ==== Setup ====
-def setup_logging() -> None:
-    # Create Logs directory if it doesn't exist
-    if not os.path.isdir('logs\\'):
-        os.mkdir('logs')
+#region ==== CLASSES ====
+class EvvyClient(discord.Client):
+    token : str
 
-    with open(file='config\\logging_config.yaml', mode='r') as file:
-        try:
-            # Setting up using config...
-            config: Dict = yaml.safe_load(file)
-            logging.config.dictConfig(config)
+    # Constructor
+    def __init__(self, p_intents : Intents, p_token : str=None):
+        super().__init__(intents=p_intents)
+        self.tree = app_commands.CommandTree(self)
 
-        except Exception as e:
-            main_logger.exception(f'Unable to configure logging: {e}')
-
-        
-
-        main_logger.debug('Logging initialized')
-
-# 1. Setup Logging
-main_logger = logging.getLogger(name='main_logger')
-setup_logging()
-
-# 2. Grab bot token out of secrets file
-secrets_filepath : str = 'config\\secrets.cfg'
-bot_token : str = retrieve_bot_token(secrets_filepath)
-
-# 3. Load bot configuration
-config_path : str = 'config\\bot_config.ini'
-bot_config : ConfigParser = ConfigParser()
-bot_config.read(config_path)
-
-# 4. Create Bot Client and run
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
-
-evvy_bot = Bot(command_prefix='!', intents=intents)
-
-# ==== EVENTS ====
-@evvy_bot.event
-async def on_ready():
+        self.token = p_token
+    
+    #region ==== EVENT CALLBACKS ====
+    async def on_ready(self):
         """
-        'ready' event. Should:
+        Callback for when the client receives the 'ready' event. Should:
             1. Write to debugger indicating successful login
             2. Sync bot commands with tree, output status message when done
             3. List currently connected guilds
         """
-        #  Log in
-        logMessage : str = f'Logged in as: {evvy_bot.user}\n'
+        #  Report Log in
+        logMessage : str = f'Logged in as: {self.user}\n'
         main_logger.info(logMessage)
 
         # Sync Commands
-        synced = await evvy_bot.tree.sync()
+        synced = await self.tree.sync()
         main_logger.info(f'Synced {len(synced)} commands')
 
         # List Connected guilds
         main_logger.info('===== Connected to Guilds: =====')
-        for guild in evvy_bot.guilds:
+        for guild in self.guilds:
             info_string : str = f' {guild.name} ({len(guild.members)} members)'
             main_logger.info(info_string)
 
-@evvy_bot.event
-async def on_guild_join(self, p_guild: Guild):
-    """
-    'on guild join' event. Should:
-        1. Write to debugger that a guild was successfully joined indicating the number of members in it
-        2. Post a message in each text channel advertising that the bot has joined
-    """
+    async def on_guild_join(self, p_guild: Guild):
+        """
+        Callback that triggers when the bot joins a guild. Should:
+            1. Write to debugger that a guild was successfully joined indicating the number of members in it
+            2. Post a message in each text channel advertising that the bot has joined
+        """
 
-    print(f' *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
+        print(f' *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
 
-    textChannels = []
-    for channel in p_guild.channels:
-        if type(channel) is TextChannel:
-            textChannels.append(channel)
-    for channel in textChannels:
-        # if len(textChannels) > 0:
-        #     channel = textChannels[0]
-        await channel.send(content='Bot Online!')
+        textChannels = []
+        for channel in p_guild.channels:
+            if type(channel) is TextChannel:
+                textChannels.append(channel)        
+        if len(textChannels > 0):
+            channel = textChannels[0]
+            await channel.send(content='Bot Online!')
 
-@evvy_bot.event
-async def on_guild_remove(self, p_guild: Guild):
-    print(f' *** Removed From Guild: {p_guild.name} ***')
-
-# ==== COMMANDS ====
-@evvy_bot.tree.command(name='echo', description='Repeats your message.')
-@app_commands.describe(message='The message to repeat')
-async def echo(p_interaction : discord.Interaction, message : str):
-    """
-    echo command: Just echoes back a message sent by a user
-    """
+    async def on_guild_remove(self, p_guild: Guild):
+        """
+        Callback that triggers when the bot is removed from a guild
+        """
+        
+        print(f' *** Removed From Guild: {p_guild.name} ***')
+    #endregion
     
-    await p_interaction.response.send_message(f'{author}: {message}')
+    #region ==== COMMANDS ====
+    # Slash command: /echo
+    @app_commands.command(name='echo', description='Repeats your message.')
+    @app_commands.describe(message='The message to repeat')
+    async def echo(interaction : discord.Interaction, message : str):
+        """
+        echo command: Just echoes back a message sent by a user
+        """
+        author = interaction.user.global_name
 
-# ==== UTILITY FUNCTIONS ====
-def get_logger() -> logging.Logger:
-    return main_logger
+        await interaction.response.send_message(f'{author} said: {message}')
+    
+    # Slash command: /button_example
+    @app_commands.command(name="button_example", description="Sends a message with an interactive button.")
+    async def button_example(self, interaction: discord.Interaction):
+        class ButtonView(discord.ui.View):
+            @discord.ui.button(label="Click Me", style=discord.ButtonStyle.primary)
+            async def button_callback(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                await button_interaction.response.send_message("You clicked the button!")
+        
+        await interaction.response.send_message("Here is an interactive button!", view=ButtonView())
+    #endregion
+#endregion
 
 
-# ==== RUN THE BOT ====
-evvy_bot.run(bot_token)
+#region ==== RUN THE BOT ====
+if __name__ == "__main__":
+
+    # 1. Setup Logging
+    main_logger = logging.getLogger(name='main_logger')
+    setup_logging()
+
+    # 2. Grab bot token out of secrets file
+    secrets_filepath : str = 'config\\secrets.cfg'
+    bot_token : str = retrieve_bot_token(secrets_filepath)
+
+    # 3. Load bot configuration
+    config_path : str = 'config\\bot_config.ini'
+    bot_config : ConfigParser = ConfigParser()
+    bot_config.read(config_path)
+
+    # 4. Create intents, create client
+    intents = discord.Intents.default()
+    intents.members = True
+    intents.message_content = True
+
+    evvy_client : EvvyClient = EvvyClient(p_intents=intents, p_token=bot_token)
+    evvy_client.run(bot_token)
+#endregion
