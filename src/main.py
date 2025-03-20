@@ -8,44 +8,21 @@ import yaml
 
 from configparser import ConfigParser
 from datetime import datetime as DateTime
-from discord import User, Member, Guild, TextChannel, Message, Intents
+from discord import app_commands, User, Member, Guild, TextChannel, Message, Intents
+from discord import Interaction, InteractionType
+from discord.ext.commands import Bot
 from typing import Dict, List, Union
 
-import discord.ext
+from bot_utils import retrieve_bot_token
+
+# ==== FUNCTIONS ====
+
 
 # ==== GLOBALS ====
 global main_logger
+global evvy_bot
 
-# ==== CLASSES ====
-
-class EvvyClient(discord.Client):
-    async def on_ready(self):
-        logMessage : str = f'Logged in as: {self}\n'
-
-        main_logger.info(logMessage)
-
-        # List Connected guilds
-        main_logger.info('===== Connected to Guilds: =====')
-        for guild in self.guilds:
-            info_string : str = f' {guild.name} ({len(guild.members)} members)'
-            main_logger.info(info_string)
-
-    async def on_guild_join(self, p_guild: Guild):
-        print(f' *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
-
-        textChannels = []
-        for channel in p_guild.channels:
-            if type(channel) is TextChannel:
-                textChannels.append(channel)
-        for channel in textChannels:
-            # if len(textChannels) > 0:
-            #     channel = textChannels[0]
-            await channel.send(content='Bot Online!')
-
-    async def on_guild_remove(self, p_guild: Guild):
-        print(f' *** Removed From Guild: {p_guild.name} ***')
-
-
+# ==== Setup ====
 def setup_logging() -> None:
     # Create Logs directory if it doesn't exist
     if not os.path.isdir('logs\\'):
@@ -64,45 +41,86 @@ def setup_logging() -> None:
 
         main_logger.debug('Logging initialized')
 
-def retrieve_bot_token(p_secrets_path : str) -> str:
-    if os.path.isfile(p_secrets_path):
-        secrets_parser : ConfigParser = ConfigParser()
-        secrets_parser.read(p_secrets_path)
+# 1. Setup Logging
+main_logger = logging.getLogger(name='main_logger')
+setup_logging()
 
-        try:
-            token : str = secrets_parser['SECRETS']['token']
-            return token
-        except Exception as e:
-            main_logger.exception(f'Trouble accessing token in secrets loader: {secrets_parser}')
+# 2. Grab bot token out of secrets file
+secrets_filepath : str = 'config\\secrets.cfg'
+bot_token : str = retrieve_bot_token(secrets_filepath)
 
-    else:
-        main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
+# 3. Load bot configuration
+config_path : str = 'config\\bot_config.ini'
+bot_config : ConfigParser = ConfigParser()
+bot_config.read(config_path)
 
+# 4. Create Bot Client and run
+intents = discord.Intents.default()
+intents.members = True
+intents.message_content = True
 
-def main():
-    global main_logger
+evvy_bot = Bot(command_prefix='!', intents=intents)
 
-    # 1. Setup Logging
-    main_logger = logging.getLogger(name='main_logger')
-    setup_logging()
+# ==== EVENTS ====
+@evvy_bot.event
+async def on_ready():
+        """
+        'ready' event. Should:
+            1. Write to debugger indicating successful login
+            2. Sync bot commands with tree, output status message when done
+            3. List currently connected guilds
+        """
+        #  Log in
+        logMessage : str = f'Logged in as: {evvy_bot.user}\n'
+        main_logger.info(logMessage)
 
-    # 2. Grab bot token out of secrets file
-    secrets_filepath : str = 'config\\secrets.cfg'
-    bot_token : str = retrieve_bot_token(secrets_filepath)
+        # Sync Commands
+        synced = await evvy_bot.tree.sync()
+        main_logger.info(f'Synced {len(synced)} commands')
 
-    # 3. Load bot configuration
-    config_path : str = 'config\\bot_config.ini'
-    bot_config : ConfigParser = ConfigParser()
-    bot_config.read(config_path)
+        # List Connected guilds
+        main_logger.info('===== Connected to Guilds: =====')
+        for guild in evvy_bot.guilds:
+            info_string : str = f' {guild.name} ({len(guild.members)} members)'
+            main_logger.info(info_string)
 
-    # 4. Create Bot Client and run
-    intents = discord.Intents.default()
-    intents.members = True
-    intents.message_content = True
+@evvy_bot.event
+async def on_guild_join(self, p_guild: Guild):
+    """
+    'on guild join' event. Should:
+        1. Write to debugger that a guild was successfully joined indicating the number of members in it
+        2. Post a message in each text channel advertising that the bot has joined
+    """
 
-    evvy_client : EvvyClient = EvvyClient(intents=intents)
+    print(f' *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
+
+    textChannels = []
+    for channel in p_guild.channels:
+        if type(channel) is TextChannel:
+            textChannels.append(channel)
+    for channel in textChannels:
+        # if len(textChannels) > 0:
+        #     channel = textChannels[0]
+        await channel.send(content='Bot Online!')
+
+@evvy_bot.event
+async def on_guild_remove(self, p_guild: Guild):
+    print(f' *** Removed From Guild: {p_guild.name} ***')
+
+# ==== COMMANDS ====
+@evvy_bot.tree.command(name='echo', description='Repeats your message.')
+@app_commands.describe(message='The message to repeat')
+async def echo(p_interaction : discord.Interaction, message : str):
+    """
+    echo command: Just echoes back a message sent by a user
+    """
     
-    evvy_client.run(bot_token)
+    await p_interaction.response.send_message(f'{author}: {message}')
 
-if __name__ == "__main__":
-    main()
+# ==== UTILITY FUNCTIONS ====
+def get_logger() -> logging.Logger:
+    return main_logger
+
+
+# ==== RUN THE BOT ====
+evvy_bot.run(bot_token)
