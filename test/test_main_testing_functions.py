@@ -15,4 +15,3 @@ def test_remove_es():
     assert remove_es('car') == 'car'
     assert remove_es(None) is None
     assert remove_es(1) is None
-

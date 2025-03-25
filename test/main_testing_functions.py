@@ -7,6 +7,9 @@ def addition(a : int = None, b : int = None) -> int | None:
     else:
         return None
 
+def subtraction(a, b):
+    return a - b
+
 def remove_es(p_input : str = None) -> str | None:
     if isinstance(p_input, str):
         new_string : str = p_input.replace('e', '')
