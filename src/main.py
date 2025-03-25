@@ -3,14 +3,13 @@ import datetime
 import discord
 import logging.config
 import os
-import discord.ext.commands
 import yaml
 
 from configparser import ConfigParser
 from datetime import datetime as DateTime
 from discord import app_commands, User, Member, Guild, TextChannel, Message, Intents
 from discord import Interaction, InteractionType
-from discord.ext.commands import Bot
+from discord.ext import commands
 from typing import Dict, List, Union
 
 from bot_utils import retrieve_bot_token, setup_logging
@@ -90,7 +89,7 @@ class EvvyClient(discord.Client):
         await interaction.response.send_message(f'{author} said: {message}')
     
     # Slash command: /button_example
-    @app_commands.command(name="button_example", description="Sends a message with an interactive button.")
+    @app_commands.tree.command(name="button_example", description="Sends a message with an interactive button.")
     async def button_example(self, interaction: discord.Interaction):
         class ButtonView(discord.ui.View):
             @discord.ui.button(label="Click Me", style=discord.ButtonStyle.primary)
