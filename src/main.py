@@ -7,7 +7,7 @@ import yaml
 
 from configparser import ConfigParser
 from datetime import datetime as DateTime
-from discord import app_commands, User, Member, Guild, TextChannel, Message, Intents
+from discord import app_commands, User, Member, Guild, TextChannel, Message, Intents, ScheduledEvent
 from discord import Interaction, InteractionType
 from discord.ext import commands
 from typing import Dict, List, Union
@@ -19,15 +19,21 @@ global main_logger
 global evvy_client
 
 #region ==== CLASSES ====
+class GuildEvent:
+    event : ScheduledEvent
+
+
 class EvvyClient(discord.Client):
     token : str
-
+    guilds_joined : List[Guild]
+    
     # Constructor
     def __init__(self, p_intents : Intents, p_token : str=None):
         super().__init__(intents=p_intents)
         self.tree = app_commands.CommandTree(self)
 
         self.token = p_token
+        self.guilds_joined = [self.fetch_guilds()]
 
     #region ==== EVENT CALLBACKS ====
     async def on_ready(self):
@@ -42,8 +48,13 @@ class EvvyClient(discord.Client):
         main_logger.info(logMessage)
 
         # Sync Commands
-        synced = await self.tree.sync()
-        main_logger.info(f'Synced {len(synced)} commands')
+        main_logger.info('Initiating command tree sync...')
+        try:
+            synced = await self.tree.sync()
+            synced_commands = [c.name for c in synced]
+            main_logger.info(f'Synced {len(synced)} commands: {synced_commands}')
+        except Exception as e:
+            main_logger.exception(f'Encountered an error when syncing app commands: \n{e}')
 
         # List Connected guilds
         main_logger.info('===== Connected to Guilds: =====')
@@ -80,16 +91,15 @@ class EvvyClient(discord.Client):
     # Slash command: /echo
     @app_commands.command(name='echo', description='Repeats your message.')
     @app_commands.describe(message='The message to repeat')
-    async def echo(interaction : discord.Interaction, message : str):
+    async def echo(self, interaction : discord.Interaction, message : str):
         """
         echo command: Just echoes back a message sent by a user
         """
         author = interaction.user.global_name
-
         await interaction.response.send_message(f'{author} said: {message}')
     
     # Slash command: /button_example
-    @app_commands.tree.command(name="button_example", description="Sends a message with an interactive button.")
+    @app_commands.command(name="button_example", description="Sends a message with an interactive button.")
     async def button_example(self, interaction: discord.Interaction):
         class ButtonView(discord.ui.View):
             @discord.ui.button(label="Click Me", style=discord.ButtonStyle.primary)
