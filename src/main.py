@@ -36,6 +36,16 @@ class EvvyClient(discord.Client):
         self.guilds_joined = [self.fetch_guilds()]
 
     #region ==== EVENT CALLBACKS ====
+    async def setup_hook(self):
+        # Sync Commands
+        main_logger.info('Initiating command tree sync...')
+        try:
+            synced = await self.tree.sync()
+            synced_commands = [c.name for c in synced]
+            main_logger.info(f'Synced {len(synced)} commands: {synced_commands}')
+        except Exception as e:
+            main_logger.exception(f'Encountered an error when syncing app commands: \n{e}')
+
     async def on_ready(self):
         """
         Callback for when the client receives the 'ready' event. Should:
@@ -46,15 +56,6 @@ class EvvyClient(discord.Client):
         #  Report Log in
         logMessage : str = f'Logged in as: {self.user}\n'
         main_logger.info(logMessage)
-
-        # Sync Commands
-        main_logger.info('Initiating command tree sync...')
-        try:
-            synced = await self.tree.sync()
-            synced_commands = [c.name for c in synced]
-            main_logger.info(f'Synced {len(synced)} commands: {synced_commands}')
-        except Exception as e:
-            main_logger.exception(f'Encountered an error when syncing app commands: \n{e}')
 
         # List Connected guilds
         main_logger.info('===== Connected to Guilds: =====')
@@ -107,13 +108,48 @@ class EvvyClient(discord.Client):
                 await button_interaction.response.send_message("You clicked the button!")
         
         await interaction.response.send_message("Here is an interactive button!", view=ButtonView())
+
+    @app_commands.command(name='sample_events_menu', description='Responds with a select menu populated with ScheduledEvents from the server')
+    async def events_menu(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        events = await guild.fetch_scheduled_events()
+        
+        if not events:
+            await interaction.response.send_message("No scheduled events found.")
+            return
+
+        options = [
+            discord.SelectOption(label=event.name, value=str(event.id), description=event.description or "No description")
+            for event in events
+        ]
+
+        class EventSelect(discord.ui.Select):
+            def __init__(self):
+                super().__init__(placeholder="Select an event", options=options)
+
+            async def callback(self, select_interaction: discord.Interaction):
+                selected_event = discord.utils.get(events, id=int(self.values[0]))
+                if selected_event:
+                    await select_interaction.response.send_message(f'You selected: {selected_event.name}')
+
+        class EventView(discord.ui.View):
+            def __init__(self):
+                super().__init__()
+                self.add_item(EventSelect())
+
+        await interaction.response.send_message("Select an event from the menu:", view=EventView())
+
+
     #endregion
 
     #region ==== CLASS METHODS ====
     @classmethod
-    def bind_commands_to_client(cls, p_client) -> None:
+    def bind_commands_to_client(cls, p_client : discord.Client) -> discord.Client:
         p_client.tree.add_command(EvvyClient.echo)
         p_client.tree.add_command(EvvyClient.button_example)
+        p_client.tree.add_command(EvvyClient.events_menu)
+
+        return p_client
     #endregion
 #endregion
 
@@ -141,6 +177,6 @@ if __name__ == "__main__":
     intents.message_content = True
 
     evvy_client : EvvyClient = EvvyClient(p_intents=intents, p_token=bot_token)
-    EvvyClient.bind_commands_to_client(evvy_client)
-    evvy_client.run(bot_token)
+    bound_evvy_client = EvvyClient.bind_commands_to_client(evvy_client)
+    bound_evvy_client.run(bot_token)
 #endregion
