@@ -2,6 +2,7 @@ import discord
 import logging
 
 from discord import ApplicationContext, SlashCommandGroup, Option, Message, User
+from discord.ui import Modal
 from discord.ext.commands import Bot
 
 from views import PinListModal, PinCreateModal
@@ -64,4 +65,15 @@ async def list(ctx : ApplicationContext) -> None:
 
     modal : PinListModal = PinListModal()
     await ctx.send_modal(modal)
+#endregion
+
+#region ==== UTILITY FUNCTIONS ====
+def handle_pin_list_modal_submit(p_pin_list_modal : PinListModal = None):
+    if not p_pin_list_modal:
+        main_logger.info('Didnt receive a modal argument')
+    if not isinstance(p_pin_list_modal, PinListModal):
+        main_logger.debug(f'Provided Modal is of the wrong type: {p_pin_list_modal}')
+
+    
+
 #endregion

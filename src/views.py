@@ -1,15 +1,26 @@
 import discord
+import logging
 
 from discord import Interaction, InputTextStyle, Message
 from discord.ui import Modal, InputText
-from typing import List
+from typing import List, Callable
 
+#region ==== GLOBALS ====
+global main_logger
+main_logger = logging.getLogger(name='main_logger')
+
+#region ==== CLASSES ====
 class PinListModal(Modal):
+    submission_callback : Callable
+
     key_word_input : InputText
     tags_input : InputText
 
-    def __init__(self):
+    def __init__(self, p_submission_callback : Callable = None):
         super().__init__(title="List Options")
+
+        if p_submission_callback:
+            self.submission_callback = p_submission_callback
 
         self.key_word_input = InputText(label="Key Words (Optional)", placeholder="Keywords to search for...", required=False, style=InputTextStyle.singleline)
         self.tags_input = InputText(label="Tags", placeholder="Tags to include lethalcompany, repo, theforest, etc...", required=False, style=InputTextStyle.short)
@@ -17,10 +28,11 @@ class PinListModal(Modal):
         self.add_item(self.key_word_input)
         self.add_item(self.tags_input)
 
-    async def on_submit(self, interaction: Interaction):        
-        await interaction.response.send_message("Sorry I don't know what to do with that yet")
+    async def callback(self, interaction : Interaction):
+        """
+        call the external function when the modal is submitted
+        """
         raise NotImplementedError()
-        # await interaction.response.send_message(f"You entered: {self.input.value}", ephemeral=True)
 
 class PinCreateModal(Modal):
     target_message : Message
@@ -46,3 +58,6 @@ class PinCreateModal(Modal):
         await interaction.response.send_message("Sorry I don't know what to do with that yet")
         raise NotImplementedError()
         # await interaction.response.send_message(f"You entered: {self.input.value}", ephemeral=True)
+
+
+#endregion
