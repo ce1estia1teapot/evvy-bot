@@ -1,7 +1,7 @@
 import discord
 import logging
 
-from discord import ApplicationContext, SlashCommandGroup, Option, Message, User
+from discord import ApplicationContext, SlashCommandGroup, Option, Message, User, Interaction
 from discord.ui import Modal
 from discord.ext.commands import Bot
 
@@ -25,6 +25,19 @@ async def subcommand2(ctx : ApplicationContext):
 
 #endregion
 
+#region ==== UTILITY FUNCTIONS ====
+def callback_pin_list_modal(p_pin_list_modal : PinListModal, p_interaction : Interaction):
+    if not p_pin_list_modal:
+        main_logger.info('Didnt receive a modal argument')
+    if not isinstance(p_pin_list_modal, PinListModal):
+        main_logger.debug(f'Provided Modal is of the wrong type: {p_pin_list_modal}')
+    
+    # 1. Extract keywords, tags, and guild info
+
+    # 2. Retrieve guild pin collection from records
+
+    # 3. Search pin collection for keywords, filter by tags
+
 #region ==== PIN COMMANDS ====
 pin_group : SlashCommandGroup = SlashCommandGroup(name='pin', description='Command group for handling the creation of pins in a server')
 
@@ -32,11 +45,13 @@ pin_group : SlashCommandGroup = SlashCommandGroup(name='pin', description='Comma
 async def create(ctx : ApplicationContext, target_message_id : str = Option(description='The message ID of the message you want to pin')):
 
     if (not target_message_id) or (target_message_id == ''):
+        main_logger.info("No message was provded to /pin create")
         ctx.respond('You didnt provide a message id for me to find')
 
     # 1. Retrieve target message. If successful, move on. If not, send error message.
     target_message : Message
     try:
+        main_logger.info(f'Attempting to fetch message: {target_message_id}')
         target_message = await ctx.fetch_message(target_message_id)
     except discord.NotFound as e:
         await ctx.respond(f'I couldn\'t find the message you referred to. Message ID: {target_message_id}')
@@ -63,16 +78,9 @@ async def list(ctx : ApplicationContext) -> None:
     A function which lists all pins for the guild in which the command was invoked. Responds with a modal allowing the user to choose options for display
     """
 
-    modal : PinListModal = PinListModal()
+    modal : PinListModal = PinListModal(p_submission_callback=callback_pin_list_modal)
     await ctx.send_modal(modal)
 #endregion
-
-#region ==== UTILITY FUNCTIONS ====
-def handle_pin_list_modal_submit(p_pin_list_modal : PinListModal = None):
-    if not p_pin_list_modal:
-        main_logger.info('Didnt receive a modal argument')
-    if not isinstance(p_pin_list_modal, PinListModal):
-        main_logger.debug(f'Provided Modal is of the wrong type: {p_pin_list_modal}')
 
     
 

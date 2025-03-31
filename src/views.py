@@ -32,7 +32,7 @@ class PinListModal(Modal):
         """
         call the external function when the modal is submitted
         """
-        raise NotImplementedError()
+        self.submission_callback(self, interaction)
 
 class PinCreateModal(Modal):
     target_message : Message
