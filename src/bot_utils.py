@@ -260,29 +260,35 @@ class GuildPinCollection():
         """
         Returns a filtered list of GuildPins from the collection that are filtered by Tags and sorted by keywords
         """
+        if (len(p_keywords) == 0) and (len(p_tags) == 0):
+            return self.guild_pins
+
         main_logger.debug("Refining collection based on tags and keywords....")
 
-        final_collection : List[GuildPin] = []
+        final_collection : List[GuildPin] = self.guild_pins
         tag_similarity_threshold : float = 0.8
 
         # Filter Pins by tags
-        def compare_pin_tags(pin : GuildPin):
-            for self_tag in pin.tags:
-                for tag in p_tags:
-                    tag = tag.lower()
-                    matcher = difflib.SequenceMatcher(None, self_tag, tag)
-                    
-                    if matcher.ratio() > tag_similarity_threshold:
-                        final_collection.append(pin)
-                        return
-        for pin in self.guild_pins:
-            compare_pin_tags(pin)        
+        if len(p_tags) > 0:
+            def compare_pin_tags(pin : GuildPin):
+                for self_tag in pin.tags:
+                    for tag in p_tags:
+                        tag = tag.lower()
+                        matcher = difflib.SequenceMatcher(None, self_tag, tag)
+                        
+                        if matcher.ratio() < tag_similarity_threshold:
+                            final_collection.remove(pin)
+                            return
+            for pin in self.guild_pins:
+                compare_pin_tags(pin)    
+
         main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on tags')
 
         # Sort remaining Pins by keyword score
-        sorted_pins = sorted(final_collection, key=lambda pin : pin.get_keyword_score(p_keywords), reverse=True)
+        if len(p_keywords) > 0:
+            final_collection = sorted(final_collection, key=lambda pin : pin.get_keyword_score(p_keywords), reverse=True)
 
-        return sorted_pins
+        return final_collection
 
 
 class EvvyClient(Client):
