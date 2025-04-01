@@ -20,7 +20,7 @@ global evvy_client
 global nissi_naturals_id
 
 #region ==== CLASSES ====
-class EvvyBot(discord.Bot):
+class NissiBot(discord.Bot):
     guild_ids_to_sync : List[str]
 
     def __init__(self, p_guild_ids : List[str] = None, p_intents : discord.Intents = discord.Intents.default(), description=None, *args, **options):
@@ -50,8 +50,6 @@ class EvvyBot(discord.Bot):
         main_logger.info('Initiating command tree sync...')
         try:
             synced = await self.sync_commands(guild_ids=self.guild_ids_to_sync)
-            synced_commands = [c.name for c in synced]
-            main_logger.info(f'Synced {len(synced)} commands: {synced_commands}')
         except Exception as e:
             main_logger.exception(f'Encountered an error when syncing app commands: \n{e}')
 
@@ -103,8 +101,8 @@ if __name__ == "__main__":
 
     nissi_naturals_id : str = '599028360471117861'
 
-    evvy_bot: discord.Bot = EvvyBot(p_guild_ids=[nissi_naturals_id], p_intents=intents)
-    evvy_bot.add_application_command(test_group)
-    evvy_bot.add_application_command(pin_group)
-    evvy_bot.run(bot_token)
+    nissi_bot: discord.Bot = NissiBot(p_guild_ids=[nissi_naturals_id], p_intents=intents)
+    nissi_bot.add_application_command(test_group)
+    nissi_bot.add_application_command(pin_group)
+    nissi_bot.run(bot_token)
 #endregion

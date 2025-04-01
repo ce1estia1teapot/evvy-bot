@@ -1,5 +1,6 @@
 import datetime
 import discord
+import json
 import logging
 import os
 import yaml
@@ -15,40 +16,10 @@ from enums import GuildPinAddResult, GuildPinRemoveResult
 # ==== SETUP ====
 global client
 global main_logger
+global guild_pins_directory
+
 main_logger = logging.getLogger(name='main_logger')
-
-#region ==== FUNCTIONS ====
-def setup_logging() -> None:
-    # Create Logs directory if it doesn't exist
-    if not os.path.isdir('logs\\'):
-        os.mkdir('logs')
-
-    with open(file='config\\logging_config.yaml', mode='r') as file:
-        try:
-            # Setting up using config...
-            config: Dict = yaml.safe_load(file)
-            logging.config.dictConfig(config)
-
-        except Exception as e:
-            main_logger.exception(f'Unable to configure logging: {e}')
-        main_logger.debug('Logging initialized')
-
-def retrieve_bot_token(p_secrets_path : str) -> str:
-    if os.path.isfile(p_secrets_path):
-        secrets_parser : ConfigParser = ConfigParser()
-        secrets_parser.read(p_secrets_path)
-
-        try:
-            token : str = secrets_parser['SECRETS']['token']
-            return token
-        except Exception as e:
-            main_logger.exception(f'Trouble accessing token in secrets loader: {secrets_parser}')
-
-    else:
-        main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
-
-#endregion
-
+guild_pins_directory = os.getcwd() + "\\data\\guild_pin_collections"
 
 #region ==== CLASSES ====
 class GuildPin():
@@ -181,7 +152,7 @@ class GuildPin():
 
         full_string = self.title + " " + self.description + " "  + self.originating_message_contents + " "  + self.target_message_contents
         for tag in self.tags:
-            full_string = full_string + " " = tag
+            full_string = full_string + " " + tag
 
         for keyword in p_keywords:
             keyword = keyword.lower()
@@ -206,8 +177,11 @@ class GuildPinCollection():
     guild_id : str
     guild_pins : List[GuildPin]
 
-    def __init__(self):
-        self.guild_id = None
+    def __init__(self, p_guild_id : str = None):
+        if not p_guild_id or (not isinstance(p_guild_id, str)):
+            main_logger.error("No guild ID provided")
+
+        self.guild_id = p_guild_id
         self.guild_pins = []
 
     def add(self, p_pin : GuildPin) -> GuildPinAddResult:
@@ -355,3 +329,66 @@ class EvvyClient(Client):
     @discord.slash_command(name="hello", description="Say hello to the bot!")
     async def hello(self, ctx: discord.ApplicationContext):
         await ctx.respond(f"Hello, {ctx.author.mention}!")
+
+
+#region ==== FUNCTIONS ====
+def setup_logging() -> None:
+    # Create Logs directory if it doesn't exist
+    if not os.path.isdir('logs\\'):
+        os.mkdir('logs')
+
+    with open(file='config\\logging_config.yaml', mode='r') as file:
+        try:
+            # Setting up using config...
+            config: Dict = yaml.safe_load(file)
+            logging.config.dictConfig(config)
+
+        except Exception as e:
+            main_logger.exception(f'Unable to configure logging: {e}')
+        main_logger.debug('Logging initialized')
+
+def retrieve_bot_token(p_secrets_path : str) -> str:
+    if os.path.isfile(p_secrets_path):
+        secrets_parser : ConfigParser = ConfigParser()
+        secrets_parser.read(p_secrets_path)
+
+        try:
+            token : str = secrets_parser['SECRETS']['token']
+            return token
+        except Exception as e:
+            main_logger.exception(f'Trouble accessing token in secrets loader: {secrets_parser}')
+    else:
+        main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
+
+def retrieve_guild_pin_collection_file(p_guild_id : str = None) -> GuildPinCollection | None:
+    """
+    Retrieves guild pins from file if one exists. If not, creates one and hands it back
+    
+    Assumes filenames of the format [guild_id].json
+    """
+    target_file_name : str = f'{p_guild_id}.json'
+
+    # Guard clauses
+    if (not p_guild_id):
+        main_logger.debug("No guild ID provided")
+        return None
+    
+    if not os.path.isdir(guild_pins_directory):
+        os.mkdir(guild_pins_directory)
+    if not os.path.isfile(target_file_name):
+        with open(f'{guild_pins_directory}\\{target_file_name}'):
+            pass
+    
+    
+
+def save_guild_pin_collection_to_file(p_guild_id : str = None, p_pin_collection : GuildPinCollection = None):
+    """
+    Saves the provided collection to the pin collection file associated with the provided guild id. Overwrites existing file if one is found
+    
+    Assumes filenames of the format [guild_id].json
+    """
+
+
+    pass
+
+#endregion

@@ -35,16 +35,23 @@ class PinListModal(Modal):
         self.submission_callback(self, interaction)
 
 class PinCreateModal(Modal):
-    target_message : Message
+    submit_callback : Callable
 
+    originating_message : Message
+    target_message : Message
+    
     title_input : InputText
     tags_input : InputText
     description_input : InputText
 
-    def __init__(self, p_target_message : Message = None):
+    def __init__(self, p_callback : Callable = None, p_originating_message : Message = None, p_target_message : Message = None):
         super().__init__(title="Pin Creation (Optional Info)")
-        if p_target_message:
-            self.target_message = p_target_message
+        if p_callback:
+            self.submit_callback = p_callback
+        if p_originating_message and isinstance(p_originating_message, Message):
+            self.originating_message
+        if p_target_message and isinstance(p_target_message, Message):
+            self.target_message
 
         self.title_input = InputText(label="Title (defaults to empty)", placeholder="Title you want the pin to have", required=False, style=InputTextStyle.singleline)
         self.tags_input = InputText(label="Tags (optional, defaults to empty)", placeholder="Comma separated list of tags: lethalcompany, repo, theforest, etc...", required=False, style=InputTextStyle.short)
@@ -54,10 +61,10 @@ class PinCreateModal(Modal):
         self.add_item(self.tags_input)
         self.add_item(self.description_input)
 
-    async def on_submit(self, interaction: Interaction):        
-        await interaction.response.send_message("Sorry I don't know what to do with that yet")
-        raise NotImplementedError()
-        # await interaction.response.send_message(f"You entered: {self.input.value}", ephemeral=True)
-
+    async def callback(self, interaction : Interaction):
+        """
+        Activated when modal is submitted. Used to invoke exte2rnal callback specified in constructor
+        """
+        await self.submit_callback(self, interaction, self.originating_message, self.target_message)
 
 #endregion
