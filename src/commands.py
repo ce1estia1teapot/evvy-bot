@@ -5,7 +5,7 @@ from discord import ApplicationContext, SlashCommandGroup, Option, Message, User
 from discord.ui import Modal
 from discord.ext.commands import Bot
 
-from bot_utils import GuildPin, GuildPinCollection
+from bot_utils import GuildPin, GuildPinCollection, retrieve_guild_pin_collection_from_file, save_guild_pin_collection_to_file
 from typing import List, Callable
 from views import PinListModal, PinCreateModal
 
@@ -62,8 +62,10 @@ def callback_pin_create_modal(p_pin_create_modal : PinCreateModal, p_interaction
     tags : List[str] = p_pin_create_modal.tags_input.value.replace(' ', '').split(',')
     description : str = p_pin_create_modal.description_input.value
 
+    # Create pin from new info
     new_guild_pin : GuildPin = GuildPin.create_pin_from_messages(p_title=title, p_tags=tags, p_description=description, p_target_message=target_message, p_originating_message=originating_message)
     
+    # Attempt to retrieve pin collection
 
 #endregion
     

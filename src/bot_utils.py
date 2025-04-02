@@ -86,6 +86,49 @@ class GuildPin():
         if (target_message_contents) and (isinstance(target_message_contents, str)):
             self.target_message_contents = target_message_contents
     
+    def __json__(self) -> Dict:
+        final_dict : Dict = {
+            "guild_id" : self.guild_id,
+            "pin_creation_time" : self.pin_creation_time,
+            "title" : self.title,
+            "tags" : self.tags,
+            "description" : self.description,
+
+            "target_author_global_name" : self.target_author_global_name,
+            "target_creation_time" : self.target_creation_time,
+            "target_message_id" : self.target_message_id,
+            "target_message_contents" : self.target_message_contents,
+
+            "originating_author_global_name" : self.originating_author_global_name,
+            "originating_message_id" : self.originating_message_id,
+            "originating_message_contents" : self.originating_message_contents,
+
+            "__Guild_Pin__" : True
+        }
+        return final_dict
+
+    @classmethod
+    def _from_json(cls, data : Dict):
+        main_logger.debug("_from_json_ called on GuildPin class")
+        if not "__Guild_Pin__" in data:
+            main_logger.debug("Failed to find class flag '__Guild_Pin__' in data. Returning None")
+            return None
+
+        final_object = cls(p_title = data["title"], 
+                   p_tags = data["tags"], 
+                   p_description = data["description"], 
+                   guild_id = data["guild_id"], 
+                   pin_creation_time = data["pin_creation_time"], 
+                   originating_author_global_name = data["originating_author_global_name"], 
+                   originating_message_id = data["originating_message_id"], 
+                   originating_message_contents = data["originating_message_contents"], 
+                   target_author_global_name = data["target_author_global_name"], 
+                   target_creation_time = data["target_creation_time"], 
+                   target_message_id = data["target_message_id"], 
+                   target_message_contents = data["target_message_contents"]
+                )
+        return final_object
+
     @classmethod
     def create_pin_from_messages(cls, p_title : str = None, p_tags : List[str] = None, p_description : str = None, 
                                  p_target_message : discord.Message = None, p_originating_message : discord.Message = None):
@@ -177,12 +220,37 @@ class GuildPinCollection():
     guild_id : str
     guild_pins : List[GuildPin]
 
-    def __init__(self, p_guild_id : str = None):
-        if not p_guild_id or (not isinstance(p_guild_id, str)):
-            main_logger.error("No guild ID provided")
-
+    def __init__(self, p_guild_id : str = None, p_guild_pins : List[GuildPin] = None):
         self.guild_id = p_guild_id
-        self.guild_pins = []
+        self.guild_pins = p_guild_pins
+    
+    def __json__(self) -> Dict:
+        final_dict : Dict = {
+            "guild_id" : self.guild_id,
+            "guild_pins" : [pin.__json__() for pin in self.guild_pins if hasattr(pin, "__json__")],
+
+            "__Guild_Pin_Collection__" : True
+        }
+        return final_dict
+    
+    @classmethod
+    def _from_json(cls, data : Dict):
+        main_logger.debug("_from_json_ called on GuildPinCollection class")
+
+        # If there is data but flag isn't found, return
+        if (len(data) > 0) and (not "__Guild_Pin_Collection__" in data):
+            main_logger.debug("Failed to find class flag '__Guild_Pin_Collection_' in data. Returning None")
+            return None
+
+        # If there is no data, create a blank one
+        if (len(data) == 0):
+            return_collection = cls()
+        else:
+            # Otherwise, populate with data
+            guild_id : str = data["guild_id"]
+            guild_pins : List[GuildPin] = [GuildPin._from_json(pin) for pin in data["guild_pins"]]
+
+        return cls(guild_id, guild_pins)
 
     def add(self, p_pin : GuildPin) -> GuildPinAddResult:
         """
@@ -264,72 +332,18 @@ class GuildPinCollection():
 
         return final_collection
 
-
-class EvvyClient(Client):
-    token : str
-    guilds_joined : List[Guild]
     
-    # Constructor
-    def __init__(self, p_intents : Intents, p_token : str=None):
-        super().__init__(intents=p_intents)
-        self.token = p_token
-        self.guilds_joined = [self.fetch_guilds()]
+class GuildPinJSONEncoder(json.JSONEncoder):
+    def default(self, obj : GuildPin):
+        if isinstance(obj, GuildPin) and (hasattr(obj, "__json__")):
+            return obj.__json__()
+        return super().default(obj)
 
-    async def on_ready(self):
-        """
-        Callback for when the client receives the 'ready' event. Should:
-            1. Write to debugger indicating successful login
-            2. Sync bot commands with tree, output status message when done
-            3. List currently connected guilds
-        """
-        #  Report Log in
-        logMessage : str = f'Logged in as: {self.user}\n'
-        main_logger.info(logMessage)
-
-        # List Connected guilds
-        main_logger.info('===== Connected to Guilds: =====')
-        for guild in self.guilds:
-            info_string : str = f' {guild.name} ({len(guild.members)} members)'
-            main_logger.info(info_string)
-        
-        # Sync Commands
-        main_logger.info('Initiating command tree sync...')
-        try:
-            synced = await self.sync_commands()
-            synced_commands = [c.name for c in synced]
-            main_logger.info(f'Synced {len(synced)} commands: {synced_commands}')
-        except Exception as e:
-            main_logger.exception(f'Encountered an error when syncing app commands: \n{e}')
-
-    async def on_guild_join(self, p_guild: Guild):
-        """
-        Callback that triggers when the bot joins a guild. Should:
-            1. Write to debugger that a guild was successfully joined indicating the number of members in it
-            2. Post a message in each text channel advertising that the bot has joined
-        """
-
-        print(f' *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
-
-        textChannels = []
-        for channel in p_guild.channels:
-            if type(channel) is TextChannel:
-                textChannels.append(channel)        
-        if len(textChannels > 0):
-            channel = textChannels[0]
-            await channel.send(content='Bot Online!')
-
-    async def on_guild_remove(self, p_guild: Guild):
-        """
-        Callback that triggers when the bot is removed from a guild
-        """
-        
-        print(f' *** Removed From Guild: {p_guild.name} ***')
-
-    # Slash command: /hello
-    @discord.slash_command(name="hello", description="Say hello to the bot!")
-    async def hello(self, ctx: discord.ApplicationContext):
-        await ctx.respond(f"Hello, {ctx.author.mention}!")
-
+class GuildPinCollectionJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, GuildPinCollection):
+            return obj.__json__()
+        return super().default(obj)
 
 #region ==== FUNCTIONS ====
 def setup_logging() -> None:
@@ -360,35 +374,115 @@ def retrieve_bot_token(p_secrets_path : str) -> str:
     else:
         main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
 
-def retrieve_guild_pin_collection_file(p_guild_id : str = None) -> GuildPinCollection | None:
+def retrieve_guild_pin_collection_from_file(p_guild_id : str = None) -> GuildPinCollection | None:
     """
     Retrieves guild pins from file if one exists. If not, creates one and hands it back
     
     Assumes filenames of the format [guild_id].json
     """
-    target_file_name : str = f'{p_guild_id}.json'
+    target_file_name : str = f'{guild_pins_directory}\\{p_guild_id}.json'
 
     # Guard clauses
     if (not p_guild_id):
         main_logger.debug("No guild ID provided")
-        return None
-    
+        return None    
     if not os.path.isdir(guild_pins_directory):
         os.mkdir(guild_pins_directory)
-    if not os.path.isfile(target_file_name):
-        with open(f'{guild_pins_directory}\\{target_file_name}'):
-            pass
     
+    with open(target_file_name, 'r') as file:
+        # TODO: Implement retrieval of GuildPinCollection file contents
+        contents = json.load(file)
+        pin_collection : GuildPinCollection = GuildPinCollection._from_json(contents)
+        return pin_collection
     
 
-def save_guild_pin_collection_to_file(p_guild_id : str = None, p_pin_collection : GuildPinCollection = None):
+def save_guild_pin_collection_to_file(p_pin_collection : GuildPinCollection = None):
     """
     Saves the provided collection to the pin collection file associated with the provided guild id. Overwrites existing file if one is found
     
     Assumes filenames of the format [guild_id].json
     """
 
+    if not p_pin_collection:
+        main_logger.error("pin collection not provided. Returning None")
+        return None
+    if not p_pin_collection.guild_id:
+        main_logger.error("pin collection has no associated GuildID - cannot save. Returning None")
+        return None
+    
+    guild_id : str = p_pin_collection.guild_id
+    target_file_name : str = f'{guild_pins_directory}\\{guild_id}.json'
 
-    pass
+    with open(target_file_name, 'w') as file:
+        json.dump(obj=p_pin_collection, fp=file, cls=GuildPinCollectionJSONEncoder)
+    
+    main_logger.info(f'Saved {len(p_pin_collection.guild_pins)} pins to file for Guild: {guild_id}')
+    
 
 #endregion
+
+#region ==== APPENDIX ====
+# class EvvyClient(Client):
+#     token : str
+#     guilds_joined : List[Guild]
+    
+#     # Constructor
+#     def __init__(self, p_intents : Intents, p_token : str=None):
+#         super().__init__(intents=p_intents)
+#         self.token = p_token
+#         self.guilds_joined = [self.fetch_guilds()]
+
+#     async def on_ready(self):
+#         """
+#         Callback for when the client receives the 'ready' event. Should:
+#             1. Write to debugger indicating successful login
+#             2. Sync bot commands with tree, output status message when done
+#             3. List currently connected guilds
+#         """
+#         #  Report Log in
+#         logMessage : str = f'Logged in as: {self.user}\n'
+#         main_logger.info(logMessage)
+
+#         # List Connected guilds
+#         main_logger.info('===== Connected to Guilds: =====')
+#         for guild in self.guilds:
+#             info_string : str = f' {guild.name} ({len(guild.members)} members)'
+#             main_logger.info(info_string)
+        
+#         # Sync Commands
+#         main_logger.info('Initiating command tree sync...')
+#         try:
+#             synced = await self.sync_commands()
+#             synced_commands = [c.name for c in synced]
+#             main_logger.info(f'Synced {len(synced)} commands: {synced_commands}')
+#         except Exception as e:
+#             main_logger.exception(f'Encountered an error when syncing app commands: \n{e}')
+
+#     async def on_guild_join(self, p_guild: Guild):
+#         """
+#         Callback that triggers when the bot joins a guild. Should:
+#             1. Write to debugger that a guild was successfully joined indicating the number of members in it
+#             2. Post a message in each text channel advertising that the bot has joined
+#         """
+
+#         print(f' *** Joined {p_guild.name} *** ({len(p_guild.members)} members)')
+
+#         textChannels = []
+#         for channel in p_guild.channels:
+#             if type(channel) is TextChannel:
+#                 textChannels.append(channel)        
+#         if len(textChannels > 0):
+#             channel = textChannels[0]
+#             await channel.send(content='Bot Online!')
+
+#     async def on_guild_remove(self, p_guild: Guild):
+#         """
+#         Callback that triggers when the bot is removed from a guild
+#         """
+        
+#         print(f' *** Removed From Guild: {p_guild.name} ***')
+
+#     # Slash command: /hello
+#     @discord.slash_command(name="hello", description="Say hello to the bot!")
+#     async def hello(self, ctx: discord.ApplicationContext):
+#         await ctx.respond(f"Hello, {ctx.author.mention}!")
