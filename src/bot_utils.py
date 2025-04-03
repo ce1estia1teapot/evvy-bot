@@ -1,4 +1,5 @@
 import datetime
+import difflib
 import discord
 import json
 import logging
@@ -8,6 +9,7 @@ import difflib
 
 from configparser import ConfigParser
 from datetime import datetime as DateTime
+from difflib import SequenceMatcher
 from discord import Client, Guild, Intents, TextChannel
 from typing import Dict, List
 
@@ -193,6 +195,8 @@ class GuildPinCollection():
     """
     A class representing a collection of GuildPins for a particular guild
     """
+    tag_match_threshold = 0.7
+
     ## The guild ID this set of pins belongs to
     guild_id : int
     guild_pins : List[GuildPin]
@@ -312,6 +316,23 @@ class GuildPinCollection():
             final_collection = sorted(final_collection, key=lambda pin : pin.get_keyword_score(p_keywords), reverse=True)
 
         return final_collection
+
+    def get_collection_tags(self) -> List[str]:
+        final_tags : List[str] = []
+
+        for pin in self.guild_pins:
+            for sample_tag in pin.tags:
+                if len(final_tags) == 0:
+                    final_tags.append(sample_tag)
+                    continue
+
+                for return_tag in final_tags:
+                    matcher : SequenceMatcher = SequenceMatcher(a=sample_tag, b=return_tag)
+
+                    if matcher.ratio() <= self.tag_match_threshold:
+                        final_tags.append(sample_tag)
+        
+        return final_tags
 
     
 class GuildPinJSONEncoder(json.JSONEncoder):

@@ -123,8 +123,13 @@ async def list(ctx : ApplicationContext) -> None:
     """
     A function which lists all pins for the guild in which the command was invoked. Responds with a modal allowing the user to choose options for display
     """
+    # Retrieve collection for the guild
+    pin_collection : GuildPinCollection = retrieve_guild_pin_collection_from_file(ctx.guild_id)
 
-    modal : PinListModal = PinListModal(p_submission_callback=callback_pin_list_modal)
+    # If succcessful, get the tags for that guild and hand to modal constructor
+    tags : List[str] = pin_collection.get_collection_tags()
+
+    modal : PinListModal = PinListModal(p_submission_callback=callback_pin_list_modal, p_collection_tags=tags)
     await ctx.send_modal(modal)
 #endregion
 
