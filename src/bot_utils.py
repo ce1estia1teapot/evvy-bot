@@ -26,7 +26,7 @@ class GuildPin():
     """
     A class representing a single pinned message in a particular guild
     """
-    guild_id : str   
+    guild_id : int   
     pin_creation_time : DateTime
     title : str
     tags : List[str]
@@ -38,7 +38,7 @@ class GuildPin():
     target_message_contents : str    
 
     def __init__(self, p_title : str = None, p_tags : List[str] = None, p_description : str = None, 
-                 guild_id : str = None, pin_creation_time : DateTime = None, target_author_global_name : str = None, 
+                 guild_id : int = None, pin_creation_time : DateTime = None, target_author_global_name : str = None, 
                  target_creation_time : DateTime = None, target_message_id : str = None, target_message_contents : str = None):
         """
         Constructs a GuildPin from provided discord messages
@@ -63,7 +63,7 @@ class GuildPin():
             self.title = DateTime.now()
 
         if (p_description) and (isinstance(p_description, str)):
-            self.title = p_title
+            self.description = p_description
         else:
             self.description = ""
         
@@ -71,7 +71,7 @@ class GuildPin():
             for tag in p_tags:
                 if (tag) and (isinstance(tag, str)):
                     self.tags.append(tag.lower())
-        if (guild_id) and (isinstance(guild_id, str)):
+        if (guild_id) and (isinstance(guild_id, int)):
             self.guild_id = guild_id
         if (pin_creation_time) and (isinstance(pin_creation_time, DateTime)):
             self.pin_creation_time = pin_creation_time
@@ -134,19 +134,12 @@ class GuildPin():
         target_creation_time = None
         target_message_id = None
         target_message_contents = None
-        
-        # Check for target message
-        if p_target_message:
-            main_logger.debug('Received target message... parsing info')
-
-            guild_id = p_target_message.guild.id
-            pin_creation_time = p_target_message.created_at
-        else:
-            main_logger.debug('target was None. No info to parse')
 
         # Check for target Message
         if p_target_message:
             main_logger.debug('Received target message... parsing info')
+            guild_id = p_target_message.guild.id
+            pin_creation_time = p_target_message.created_at
 
             target_author_global_name = p_target_message.author.global_name
             target_creation_time = p_target_message.created_at
@@ -201,10 +194,10 @@ class GuildPinCollection():
     A class representing a collection of GuildPins for a particular guild
     """
     ## The guild ID this set of pins belongs to
-    guild_id : str
+    guild_id : int
     guild_pins : List[GuildPin]
 
-    def __init__(self, p_guild_id : str = None, p_guild_pins : List[GuildPin] = None):
+    def __init__(self, p_guild_id : int = None, p_guild_pins : List[GuildPin] = None):
         self.guild_id = p_guild_id
 
         if p_guild_pins:
@@ -235,7 +228,7 @@ class GuildPinCollection():
             return_collection = cls()
         else:
             # Otherwise, populate with data
-            guild_id : str = data["guild_id"]
+            guild_id : str = int(data["guild_id"])
             guild_pins : List[GuildPin] = [GuildPin._from_json(pin) for pin in data["guild_pins"]]
 
         return cls(guild_id, guild_pins)
@@ -362,7 +355,7 @@ def retrieve_bot_token(p_secrets_path : str) -> str:
     else:
         main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
 
-def retrieve_guild_pin_collection_from_file(p_guild_id : str = None) -> GuildPinCollection | None:
+def retrieve_guild_pin_collection_from_file(p_guild_id : int = None) -> GuildPinCollection | None:
     """
     Retrieves guild pins from file if one exists. If not, creates one and hands it back
     
@@ -420,7 +413,7 @@ def save_guild_pin_collection_to_file(p_pin_collection : GuildPinCollection = No
         main_logger.error("pin collection has no associated GuildID - cannot save. Returning None")
         return None
     
-    guild_id : str = p_pin_collection.guild_id
+    guild_id : int = p_pin_collection.guild_id
     target_file_name : str = f'{guild_pins_directory}\\{guild_id}.json'
 
     try:
