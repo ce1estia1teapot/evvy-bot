@@ -159,16 +159,18 @@ class GuildPin():
             target_creation_time = p_target_message.created_at
             target_message_id = p_target_message.id
             target_message_contents = p_target_message.content
-        else:
-            main_logger.debug('target_message was None. No info to parse')
-        
-        return cls(p_title=p_title, p_tags=p_tags, p_description=p_description, 
+            
+            return cls(p_title=p_title, p_tags=p_tags, p_description=p_description, 
                             guild_id=guild_id, channel_id=channel_id, pin_creation_time=pin_creation_time,
                             target_author_global_name=target_author_global_name,
                             target_creation_time=target_creation_time,
-                            target_message_id=target_message_id, 
+                            message_id=target_message_id, 
                             target_message_contents=target_message_contents
                         )
+        else:
+            main_logger.debug('target_message was None. No info to parse')
+        
+        
     
     def get_keyword_score(self, p_keywords : List[str] = None) -> int:
         """
