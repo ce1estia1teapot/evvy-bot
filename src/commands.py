@@ -58,7 +58,8 @@ async def callback_pin_create_modal(p_pin_create_modal : PinCreateModal, p_inter
 
     target_message : Message = p_pin_create_modal.target_message
 
-    guild_id : str = target_message.guild.id
+    guild_id : int = int(target_message.guild.id)
+
     title : str = p_pin_create_modal.title_input.value
     tags : List[str] = p_pin_create_modal.tags_input.value.replace(' ', '').split(',')
     description : str = p_pin_create_modal.description_input.value
@@ -93,16 +94,21 @@ async def create(ctx : ApplicationContext, message_link : str = Option(str, "Lin
     Uses the replied-to message (target message) to create a GuildPin and add to corresponding GuildPinCollection
     """
 
-    target_message_id : int
+    guild_id : int
+    channel_id : int
+    message_id : int
     channel : GuildChannel
     target_message : Message
     
     # Retrieve the target message from the link provided in the initiating message. Split on slashes, then choose the last element. It will always be the message ID
+    split_message_link : List[str] = message_link.split('/')
     try:
-        target_message_id = int(message_link.split('/')[-1])
-        channel = ctx.channel
+        guild_id = int(split_message_link[-3])
+        channel_id = int(split_message_link[-2])
+        message_id = int(split_message_link[-1])
 
-        target_message = await channel.fetch_message(target_message_id)
+        target_channel = await ctx.guild.fetch_channel(channel_id)
+        target_message = await target_channel.fetch_message(message_id)
     except discord.NotFound:
         await ctx.respond("Message not found! Make sure the ID is correct.", ephemeral=True)
         return

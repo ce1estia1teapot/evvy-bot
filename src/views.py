@@ -24,10 +24,14 @@ class PinListModal(Modal):
         if not p_submission_callback:
             main_logger.error("No callback provided for PinListModal constructor")
             return
-        if (not p_collection_tags) or (not isinstance(p_collection_tags, List[str])):
+        if (not p_collection_tags):
             main_logger.error(f'Invalid list of tags from collection was provided: {p_collection_tags}')
+        if (len(p_collection_tags) == 0):
+            main_logger.debug(f'PinListModal received empty list of Pin tags: {p_collection_tags}')
         
         sorted_tags : List[str] = sorted(p_collection_tags)
+        sorted_tags.insert(0, "None")
+
         self.tags_select_options = []
         for tag in sorted_tags:
             temp_option : SelectOption = SelectOption(label=tag, value=tag)
