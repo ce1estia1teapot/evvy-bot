@@ -37,18 +37,24 @@ class GuildPin():
     target_message_id : str
     target_message_contents : str    
 
-    originating_author_global_name : discord.User
-    originating_message_id : str
-    originating_message_contents : str
-
     def __init__(self, p_title : str = None, p_tags : List[str] = None, p_description : str = None, 
-                 guild_id : str = None, pin_creation_time : DateTime = None, originating_author_global_name : str = None, 
-                 originating_message_id : str = None, originating_message_contents : str = None, target_author_global_name : str = None, 
+                 guild_id : str = None, pin_creation_time : DateTime = None, target_author_global_name : str = None, 
                  target_creation_time : DateTime = None, target_message_id : str = None, target_message_contents : str = None):
         """
         Constructs a GuildPin from provided discord messages
         """
         main_logger.debug('ENTERING GUILDPIN CONSTRUCTOR')
+
+        self.guild_id = ""
+        self.pin_creation_time = None
+        self.title = ""
+        self.tags = []
+        self.description = ""
+        
+        self.target_author_global_name = ""
+        self.target_creation_time = None
+        self.target_message_id = ""
+        self.target_message_contents  = ""
 
         # Check for basic info
         if (p_title) and (isinstance(p_title, str)) and (p_title != ""):
@@ -70,13 +76,6 @@ class GuildPin():
         if (pin_creation_time) and (isinstance(pin_creation_time, DateTime)):
             self.pin_creation_time = pin_creation_time
         
-        if (originating_author_global_name) and (isinstance(originating_author_global_name, str)):
-            self.originating_author_global_name = originating_author_global_name
-        if (originating_message_id) and (isinstance(originating_message_id, str)):
-            self.originating_message_id = originating_message_id
-        if (originating_message_contents) and (isinstance(originating_message_contents, str)):
-            self.originating_message_contents = originating_message_contents
-        
         if (target_author_global_name) and (isinstance(target_author_global_name, str)):
             self.target_author_global_name = target_author_global_name
         if (target_creation_time) and (isinstance(target_creation_time, DateTime)):
@@ -89,19 +88,15 @@ class GuildPin():
     def __json__(self) -> Dict:
         final_dict : Dict = {
             "guild_id" : self.guild_id,
-            "pin_creation_time" : self.pin_creation_time,
+            "pin_creation_time" : self.pin_creation_time.isoformat(),
             "title" : self.title,
             "tags" : self.tags,
             "description" : self.description,
 
             "target_author_global_name" : self.target_author_global_name,
-            "target_creation_time" : self.target_creation_time,
+            "target_creation_time" : self.target_creation_time.isoformat(),
             "target_message_id" : self.target_message_id,
             "target_message_contents" : self.target_message_contents,
-
-            "originating_author_global_name" : self.originating_author_global_name,
-            "originating_message_id" : self.originating_message_id,
-            "originating_message_contents" : self.originating_message_contents,
 
             "__Guild_Pin__" : True
         }
@@ -118,47 +113,36 @@ class GuildPin():
                    p_tags = data["tags"], 
                    p_description = data["description"], 
                    guild_id = data["guild_id"], 
-                   pin_creation_time = data["pin_creation_time"], 
-                   originating_author_global_name = data["originating_author_global_name"], 
-                   originating_message_id = data["originating_message_id"], 
-                   originating_message_contents = data["originating_message_contents"], 
+                   pin_creation_time = DateTime.fromisoformat(data["pin_creation_time"]),  
                    target_author_global_name = data["target_author_global_name"], 
-                   target_creation_time = data["target_creation_time"], 
+                   target_creation_time = DateTime.fromisoformat(data["target_creation_time"]), 
                    target_message_id = data["target_message_id"], 
                    target_message_contents = data["target_message_contents"]
                 )
         return final_object
 
     @classmethod
-    def create_pin_from_messages(cls, p_title : str = None, p_tags : List[str] = None, p_description : str = None, 
-                                 p_target_message : discord.Message = None, p_originating_message : discord.Message = None):
+    def create_pin_from_message(cls, p_title : str = None, p_tags : List[str] = None, p_description : str = None, 
+                                 p_target_message : discord.Message = None):
         """
         Alternate constructor that creates a GuildPin with only the basic fields filled plus the message ID's
         """
         guild_id = None
         pin_creation_time = None
 
-        originating_author_global_name = None
-        originating_message_id = None
-        originating_message_contents = None
-
         target_author_global_name = None
         target_creation_time = None
         target_message_id = None
         target_message_contents = None
         
-        # Check for originating message
-        if p_originating_message:
-            main_logger.debug('Received originating message... parsing info')
+        # Check for target message
+        if p_target_message:
+            main_logger.debug('Received target message... parsing info')
 
-            guild_id = p_originating_message.guild.id
-            pin_creation_time = p_originating_message.created_at
-
-            originating_author_global_name = p_originating_message.author.global_name
-            originating_message_id = p_originating_message.id
-            originating_message_contents = p_originating_message.content
+            guild_id = p_target_message.guild.id
+            pin_creation_time = p_target_message.created_at
         else:
-            main_logger.debug('originating_message was None. No info to parse')
+            main_logger.debug('target was None. No info to parse')
 
         # Check for target Message
         if p_target_message:
@@ -171,17 +155,17 @@ class GuildPin():
         else:
             main_logger.debug('target_message was None. No info to parse')
         
-        return cls.__init__(p_title=p_title, p_tags=p_tags, p_description=p_description, 
+        return cls(p_title=p_title, p_tags=p_tags, p_description=p_description, 
                             guild_id=guild_id, pin_creation_time=pin_creation_time,
-                            originating_author_global_name=originating_author_global_name,
-                            originating_message_id=originating_message_id, originating_message_contents=originating_message_contents,
                             target_author_global_name=target_author_global_name,
                             target_creation_time=target_creation_time,
-                            target_message_id=target_message_id, target_message_contents=target_message_contents)
+                            target_message_id=target_message_id, 
+                            target_message_contents=target_message_contents
+                        )
     
     def get_keyword_score(self, p_keywords : List[str] = None) -> int:
         """
-        Searches the pin's title, tags, description, originating message contents, and target message contents.
+        Searches the pin's title, tags, description, and target message contents.
 
         Returns the number of occurances of the keyword throughout the pin. 
         """
@@ -193,7 +177,7 @@ class GuildPin():
         final_score : int = 0
         all_words : List[str] = full_string.split(" ")
 
-        full_string = self.title + " " + self.description + " "  + self.originating_message_contents + " "  + self.target_message_contents
+        full_string = self.title + " " + self.description + " "  + " "  + self.target_message_contents
         for tag in self.tags:
             full_string = full_string + " " + tag
 
@@ -222,7 +206,11 @@ class GuildPinCollection():
 
     def __init__(self, p_guild_id : str = None, p_guild_pins : List[GuildPin] = None):
         self.guild_id = p_guild_id
-        self.guild_pins = p_guild_pins
+
+        if p_guild_pins:
+            self.guild_pins = p_guild_pins
+        else:
+            self.guild_pins = []
     
     def __json__(self) -> Dict:
         final_dict : Dict = {
@@ -252,7 +240,7 @@ class GuildPinCollection():
 
         return cls(guild_id, guild_pins)
 
-    def add(self, p_pin : GuildPin) -> GuildPinAddResult:
+    def add_pin(self, p_pin : GuildPin) -> GuildPinAddResult:
         """
         Adds a pin to the GuildPinCollection
         Returns: bool representing whether the GuildPin was successfully added to the GuildPinCollection
@@ -388,11 +376,33 @@ def retrieve_guild_pin_collection_from_file(p_guild_id : str = None) -> GuildPin
         return None    
     if not os.path.isdir(guild_pins_directory):
         os.mkdir(guild_pins_directory)
+    if not os.path.isfile(target_file_name):
+        main_logger.debug(f'No GuildPinCollection file found for GuildID {p_guild_id}. Creating an empty one.')
+
+        with open(target_file_name, 'wt') as file:
+            pass
     
-    with open(target_file_name, 'r') as file:
-        # TODO: Implement retrieval of GuildPinCollection file contents
-        contents = json.load(file)
-        pin_collection : GuildPinCollection = GuildPinCollection._from_json(contents)
+    try:
+        with open(target_file_name, 'rt') as file:
+            # TODO: Implement retrieval of GuildPinCollection file contents
+            contents = json.load(file)
+            pin_collection : GuildPinCollection = GuildPinCollection._from_json(contents)
+    
+            # If collection wasn't found on disk
+            if not pin_collection:
+                pin_collection = GuildPinCollection(p_guild_id=p_guild_id, p_guild_pins=[])
+
+            main_logger.debug(f'Returning GuildPinCollection: {pin_collection}')
+            return pin_collection
+    except json.decoder.JSONDecodeError as e:
+        pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
+
+        main_logger.error(f'Found a file for GuildID {p_guild_id}, but failed to decode JSON file. Returning empty GuildPinCollection')
+        return pin_collection
+    except IOError as e:
+        pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
+
+        main_logger.error(f'Failed to read target file: {target_file_name} \n {e}')
         return pin_collection
     
 
@@ -413,8 +423,11 @@ def save_guild_pin_collection_to_file(p_pin_collection : GuildPinCollection = No
     guild_id : str = p_pin_collection.guild_id
     target_file_name : str = f'{guild_pins_directory}\\{guild_id}.json'
 
-    with open(target_file_name, 'w') as file:
-        json.dump(obj=p_pin_collection, fp=file, cls=GuildPinCollectionJSONEncoder)
+    try:
+        with open(target_file_name, 'wt') as file:
+            json.dump(obj=p_pin_collection, fp=file, cls=GuildPinCollectionJSONEncoder)
+    except IOError as e:
+        main_logger.error(f'Failed to read target file: {target_file_name}\n {e}')
     
     main_logger.info(f'Saved {len(p_pin_collection.guild_pins)} pins to file for Guild: {guild_id}')
     
