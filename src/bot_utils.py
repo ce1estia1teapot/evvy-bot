@@ -170,7 +170,11 @@ class GuildPin():
         else:
             main_logger.debug('target_message was None. No info to parse')
         
+    def get_display_string(self):
+        target_date_string : str = f'{self.target_creation_time.month} {self.target_creation_time.day} {self.target_creation_time.year}'        
         
+        final_string : str = {f'# {self.title} \n Author: {self.target_author_global_name} \n #- Message Creation Time: {target_date_string} \n #- {self.tags} \n {self.description} \n `{self.target_message_contents}`'}
+        return final_string
     
     def get_keyword_score(self, p_keywords : List[str] = None) -> int:
         """
@@ -297,15 +301,11 @@ class GuildPinCollection():
         else:
             GuildPinRemoveResult.INVALID_PIN_PROVIDED
     
-    def get_refined_collection(self, p_keywords : List[str] = None, p_tags : List[str] = None) -> List[GuildPin]:
+    def get_refined_collection(self, p_tags : List[str] = None, p_author_names : List[str] = None) -> List[GuildPin]:
         """
         Returns a filtered list of GuildPins from the collection that are filtered by Tags and sorted by keywords
         """
-        if (len(p_keywords) == 0) and (len(p_tags) == 0):
-            return self.guild_pins
-
-        main_logger.debug("Refining collection based on tags and keywords....")
-
+        
         final_collection : List[GuildPin] = self.guild_pins
         tag_similarity_threshold : float = 0.8
 
@@ -321,13 +321,12 @@ class GuildPinCollection():
                             final_collection.remove(pin)
                             return
             for pin in self.guild_pins:
-                compare_pin_tags(pin)    
-
+                compare_pin_tags(pin)
+        
         main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on tags')
-
-        # Sort remaining Pins by keyword score
-        if len(p_keywords) > 0:
-            final_collection = sorted(final_collection, key=lambda pin : pin.get_keyword_score(p_keywords), reverse=True)
+        
+        # Filter pins by author
+        final_collection = [pin for pin in final_collection if pin.target_author_global_name in p_author_names]
 
         return final_collection
 

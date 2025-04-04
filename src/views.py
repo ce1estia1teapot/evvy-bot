@@ -1,8 +1,8 @@
 import discord
 import logging
 
-from discord import Interaction, InputTextStyle, Message, SelectOption
-from discord.ui import Modal, InputText, Select
+from discord import Interaction, InputTextStyle, Message, SelectOption, User, ComponentType, ApplicationContext
+from discord.ui import Modal, InputText, Select, View
 from typing import List, Callable
 
 #region ==== GLOBALS ====
@@ -10,45 +10,77 @@ global main_logger
 main_logger = logging.getLogger(name='main_logger')
 
 #region ==== CLASSES ====
-class PinListModal(Modal):
-    submission_callback : Callable
+class AuthorSelect(Select):
+        external_callback : Callable
 
-    key_word_input : InputText
+        def __init__(self, external_callback : Callable = None, select_type = ComponentType.user_select, *, custom_id = None, placeholder = "Select users to filter by", min_values = 1, max_values = 1, options = None, channel_types = None, disabled = False, row = None):
+            super().__init__(select_type, custom_id=custom_id, placeholder=placeholder, min_values=min_values, max_values=max_values, options=options, channel_types=channel_types, disabled=disabled, row=row)
+            self.external_callback = external_callback
+        
+        async def callback(self, interaction : Interaction):
+            self.external_callback(self, interaction, self.values)
+
+class PinListView(View):
+    external_callback : Callable
+    ctx : ApplicationContext
 
     tags_select : Select
+    is_tags_select_submitted : bool
     tags_select_options : List[SelectOption]
+    
+    authors_select : Select
+    is_authors_select_submitted : bool
+    author_select_values : List[User]
 
-    def __init__(self, p_submission_callback : Callable = None, p_collection_tags : List[str] = None):
-        super().__init__(title="List Options")
+    def __init__(self, ctx : ApplicationContext, p_collection_tags : List[str] = None, p_external_callback : Callable = None):
+        super().__init__()
+        self.ctx = ctx
 
-        if not p_submission_callback:
-            main_logger.error("No callback provided for PinListModal constructor")
-            return
+        self.tags_select_options = []
+        self.is_tags_select_submitted = False
+
+        self.author_select_values = []
+        self.is_authors_select_submitted = False
+
         if (not p_collection_tags):
-            main_logger.error(f'Invalid list of tags from collection was provided: {p_collection_tags}')
+            main_logger.debug(f'"None" provided for list of tags from collection.')
         if (len(p_collection_tags) == 0):
-            main_logger.debug(f'PinListModal received empty list of Pin tags: {p_collection_tags}')
-        
+            main_logger.debug(f'PinListView received empty list of Pin tags: {p_collection_tags}')
+        if p_external_callback:
+            self.external_callback = p_external_callback
+
+        # Sort tags
         sorted_tags : List[str] = sorted(p_collection_tags)
         sorted_tags.insert(0, "None")
 
+        # Create SelectOptions from tags
         self.tags_select_options = []
         for tag in sorted_tags:
             temp_option : SelectOption = SelectOption(label=tag, value=tag)
             self.tags_select_options.append(temp_option)
 
-        self.submission_callback = p_submission_callback
-        self.key_word_input = InputText(label="Key Words (Optional)", placeholder="Keywords to search for...", required=False, style=InputTextStyle.singleline)
         self.tags_select = Select(select_type=discord.ComponentType.string_select, placeholder="Select tags to filter by", options=self.tags_select_options)
+        self.authors_select = AuthorSelect(external_callback=self.handle_author_select_callback)
 
-        self.add_item(self.key_word_input)
         self.add_item(self.tags_select)
+        self.add_item(self.authors_select)
+    
+    async def handle_tag_select_callback(self):
+        self.is_tags_select_submitted = True
 
-    async def callback(self, interaction : Interaction):
-        """
-        call the external function when the modal is submitted
-        """
-        self.submission_callback(self, interaction)
+        if (self.is_tags_select_submitted) and (self.is_authors_select_submitted):
+            self.submission_callback
+    
+    async def handle_author_select_callback(self):
+        self.is_authors_select_submitted = True
+        
+        if (self.is_tags_select_submitted) and (self.is_authors_select_submitted):
+            self.submission_callback
+
+    def submission_callback(self):
+        # Call external callback
+        self.external_callback(self)
+        
 
 class PinCreateModal(Modal):
     submit_callback : Callable
