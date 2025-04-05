@@ -6,8 +6,8 @@ from discord.ui import Modal, View
 from discord.abc import GuildChannel
 from discord.ext.commands import Bot
 
-from bot_utils import GuildPin, GuildPinCollection, retrieve_guild_pin_collection_from_file, save_guild_pin_collection_to_file
-from typing import List, Callable
+from bot_utils import GuildPin, GuildPinCollection
+from typing import List, Callable, Self
 from views import PinListView, PinCreateModal
 
 #region ==== GLOBALS ====
@@ -37,19 +37,22 @@ async def callback_pin_list_view(p_pin_list_view : PinListView = None):
     """
     Called when the PinListView is submitted
     """
-
     # Extract info
     selected_tags : List[str] = p_pin_list_view.tags_select.values
     selected_authors : List[User] = p_pin_list_view.authors_select.values
     ctx : ApplicationContext = p_pin_list_view.ctx
     guild_id : int = int(ctx.guild.id)
 
+    # Delete the message containing the view
+    await p_pin_list_view.parent_message.delete()
+
     # Retrieve pin collection
-    pin_collection : GuildPinCollection = retrieve_guild_pin_collection_from_file(guild_id)
+    pin_collection : GuildPinCollection = GuildPinCollection.retrieve_guild_pin_collection_from_file(guild_id)
 
     # Refine with submitted values
     refined_pins : List[GuildPin] = pin_collection.get_refined_collection(p_tags=selected_tags, p_author_names=selected_authors)
 
+    
     # Display refined pin collection?
     final_string : str = ''
     for pin in refined_pins:
@@ -82,14 +85,14 @@ async def callback_pin_create_modal(p_pin_create_modal : PinCreateModal, p_inter
     main_logger.info(f'Created a new GuildPin from the modal data and target message: {new_guild_pin}')
 
     # Attempt to retrieve pin collection and add new pin
-    pin_collection : GuildPinCollection = retrieve_guild_pin_collection_from_file(p_guild_id=guild_id)
+    pin_collection : GuildPinCollection = GuildPinCollection.retrieve_guild_pin_collection_from_file(p_guild_id=guild_id)
     main_logger.info(f'Retrieved GuildPinCollection from file: {pin_collection}')
 
     pin_collection.add_pin(new_guild_pin)
 
     # Save updated pin collection to disk
     main_logger.debug("Initiating GuildPinCollection file save...")
-    save_guild_pin_collection_to_file(pin_collection)
+    pin_collection.save_guild_pin_collection_to_file()
 
     # Respond with success message
     main_logger.debug("Responding with final success message...")
@@ -149,13 +152,14 @@ async def list(ctx : ApplicationContext) -> None:
     main_logger.info("Entered the /pin list event handler")
 
     # Retrieve collection for the guild
-    pin_collection : GuildPinCollection = retrieve_guild_pin_collection_from_file(ctx.guild_id)
+    pin_collection : GuildPinCollection = GuildPinCollection.retrieve_guild_pin_collection_from_file(ctx.guild_id)
 
     # If succcessful, get the tags for that guild and hand to modal constructor
     tags : List[str] = pin_collection.get_collection_tags()
 
     view : PinListView = PinListView(ctx=ctx, p_collection_tags=tags, p_external_callback=callback_pin_list_view)
-    await ctx.send("Select the options you want to filter by", view=view)
+    sent_message = await ctx.respond("Select the options you want to filter by", view=view)
+    view.parent_messsage = sent_message
 #endregion
 
     

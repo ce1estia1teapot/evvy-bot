@@ -18,9 +18,11 @@ class AuthorSelect(Select):
             self.external_callback = external_callback
         
         async def callback(self, interaction : Interaction):
-            self.external_callback(self, interaction, self.values)
+            await self.external_callback()
 
 class PinListView(View):
+    parent_message : Message
+
     external_callback : Callable
     ctx : ApplicationContext
 
@@ -32,10 +34,13 @@ class PinListView(View):
     is_authors_select_submitted : bool
     author_select_values : List[User]
 
+    
+
     def __init__(self, ctx : ApplicationContext, p_collection_tags : List[str] = None, p_external_callback : Callable = None):
         super().__init__()
         self.ctx = ctx
 
+        self.parent_message = None
         self.tags_select_options = []
         self.is_tags_select_submitted = False
 
@@ -49,18 +54,26 @@ class PinListView(View):
         if p_external_callback:
             self.external_callback = p_external_callback
 
-        # Sort tags
-        sorted_tags : List[str] = sorted(p_collection_tags)
+        # De-duplicate and Sort tags
+        main_logger.debug(f'Received collection of {len(p_collection_tags)} tags')
+        sorted_tags = []
+        for tag in p_collection_tags:
+            if not (tag in sorted_tags):
+                sorted_tags.append(tag)
+
+        sorted_tags : List[str] = sorted(sorted_tags)
         sorted_tags.insert(0, "None")
+        main_logger.debug(f'Retrieved, de-duped, and sorted {len(sorted_tags)} tags (including None tag): {sorted_tags}')
 
         # Create SelectOptions from tags
         self.tags_select_options = []
         for tag in sorted_tags:
             temp_option : SelectOption = SelectOption(label=tag, value=tag)
             self.tags_select_options.append(temp_option)
+        main_logger.debug(f'Created {len(self.tags_select_options)} SelectOptions for TagSelect dropdown: {[option.value for option in self.tags_select_options]}')
 
-        self.tags_select = Select(select_type=discord.ComponentType.string_select, placeholder="Select tags to filter by", options=self.tags_select_options)
-        self.authors_select = AuthorSelect(external_callback=self.handle_author_select_callback)
+        self.tags_select = Select(select_type=discord.ComponentType.string_select, placeholder="Select tags to filter by", options=self.tags_select_options, min_values=0, max_values=len(self.tags_select_options))
+        self.authors_select = AuthorSelect(external_callback=self.handle_author_select_callback, min_values=0, max_values=4)
 
         self.add_item(self.tags_select)
         self.add_item(self.authors_select)

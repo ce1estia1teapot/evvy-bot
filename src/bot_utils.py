@@ -11,7 +11,7 @@ from configparser import ConfigParser
 from datetime import datetime as DateTime
 from difflib import SequenceMatcher
 from discord import Client, Guild, Intents, TextChannel
-from typing import Dict, List
+from typing import Dict, List, Self
 
 from enums import GuildPinAddResult, GuildPinRemoveResult
 
@@ -344,8 +344,88 @@ class GuildPinCollection():
 
                     if matcher.ratio() <= self.tag_match_threshold:
                         final_tags.append(sample_tag)
-        
         return final_tags
+    
+    @classmethod
+    def retrieve_guild_pin_collection_from_file(cls, p_guild_id : int = None) -> Self:
+        """
+        Retrieves guild pins from file if one exists. If not, creates one and hands it back
+        
+        Assumes filenames of the format [guild_id].json
+        """
+        # abs_target_file_path : str = f'{guild_pins_directory}\\{p_guild_id}.json'
+        file_name : str = f'{p_guild_id}.json'
+        abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
+
+        # Guard clauses
+        if (not p_guild_id):
+            main_logger.debug("No guild ID provided")
+            return None    
+        if not os.path.isdir(guild_pins_directory):
+            os.mkdir(guild_pins_directory)
+        if not os.path.isfile(abs_target_file_path):
+            main_logger.debug(f'No GuildPinCollection file found for GuildID {p_guild_id}. Creating an empty one.')
+
+            with open(abs_target_file_path, 'wt') as file:
+                pass
+        
+        try:
+            with open(abs_target_file_path, 'rt') as file:
+                # TODO: Implement retrieval of GuildPinCollection file contents
+                contents = json.load(file)
+                pin_collection : GuildPinCollection = GuildPinCollection._from_json(contents)
+        
+                # If collection wasn't found on disk
+                if not pin_collection:
+                    main_logger.debug("Pin collection was None after load. Creating an empty one with the provided GuildID")
+                    pin_collection = GuildPinCollection(p_guild_id=p_guild_id, p_guild_pins=[])
+                else:
+                    main_logger.debug(f'Valid pin collection retrieved. Returning: {pin_collection}')
+
+                main_logger.debug(f'Returning GuildPinCollection: {pin_collection}')
+                return pin_collection
+        except json.decoder.JSONDecodeError as e:
+            pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
+
+            main_logger.error(f'Found a file for GuildID {p_guild_id}, but failed to decode JSON file. Returning empty GuildPinCollection')
+            return pin_collection
+        except IOError as e:
+            pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
+
+            main_logger.error(f'Failed to read target file: {abs_target_file_path} \n {e}')
+            return pin_collection
+    
+
+    def save_guild_pin_collection_to_file(self):
+        """
+        Saves the provided collection to the pin collection file associated with the provided guild id. Overwrites existing file if one is found
+        
+        Assumes filenames of the format [guild_id].json
+        """
+
+        if not self:
+            main_logger.error("pin collection not provided. Returning None")
+            return None
+        if not self.guild_id:
+            main_logger.error("pin collection has no associated GuildID - cannot save. Returning None")
+            return None
+        
+        guild_id : int = self.guild_id
+        # target_file_name : str = f'{guild_pins_directory}\\{guild_id}.json'
+        file_name : str = f'{guild_id}.json'
+        abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
+
+        if os.path.isfile(abs_target_file_path):
+            main_logger.debug(f'Found target file. Removing before saving to enable overwrite...')
+            os.remove(abs_target_file_path)
+
+        try:
+            with open(abs_target_file_path, 'wt') as file:
+                json.dump(obj=self, fp=file, cls=GuildPinCollectionJSONEncoder)
+        except IOError as e:
+            main_logger.error(f'Failed to read target file: {abs_target_file_path}\n {e}')
+        
+        main_logger.info(f'Saved {len(self.guild_pins)} pins to file for Guild: {guild_id}')
 
     
 class GuildPinJSONEncoder(json.JSONEncoder):
@@ -389,85 +469,6 @@ def retrieve_bot_token(p_secrets_path : str) -> str:
     else:
         main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
 
-def retrieve_guild_pin_collection_from_file(p_guild_id : int = None) -> GuildPinCollection | None:
-    """
-    Retrieves guild pins from file if one exists. If not, creates one and hands it back
-    
-    Assumes filenames of the format [guild_id].json
-    """
-    # abs_target_file_path : str = f'{guild_pins_directory}\\{p_guild_id}.json'
-    file_name : str = f'{p_guild_id}.json'
-    abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
-
-    # Guard clauses
-    if (not p_guild_id):
-        main_logger.debug("No guild ID provided")
-        return None    
-    if not os.path.isdir(guild_pins_directory):
-        os.mkdir(guild_pins_directory)
-    if not os.path.isfile(abs_target_file_path):
-        main_logger.debug(f'No GuildPinCollection file found for GuildID {p_guild_id}. Creating an empty one.')
-
-        with open(abs_target_file_path, 'wt') as file:
-            pass
-    
-    try:
-        with open(abs_target_file_path, 'rt') as file:
-            # TODO: Implement retrieval of GuildPinCollection file contents
-            contents = json.load(file)
-            pin_collection : GuildPinCollection = GuildPinCollection._from_json(contents)
-    
-            # If collection wasn't found on disk
-            if not pin_collection:
-                main_logger.debug("Pin collection was None after load. Creating an empty one with the provided GuildID")
-                pin_collection = GuildPinCollection(p_guild_id=p_guild_id, p_guild_pins=[])
-            else:
-                main_logger.debug(f'Valid pin collection retrieved. Returning: {pin_collection}')
-
-            main_logger.debug(f'Returning GuildPinCollection: {pin_collection}')
-            return pin_collection
-    except json.decoder.JSONDecodeError as e:
-        pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
-
-        main_logger.error(f'Found a file for GuildID {p_guild_id}, but failed to decode JSON file. Returning empty GuildPinCollection')
-        return pin_collection
-    except IOError as e:
-        pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
-
-        main_logger.error(f'Failed to read target file: {abs_target_file_path} \n {e}')
-        return pin_collection
-    
-
-def save_guild_pin_collection_to_file(p_pin_collection : GuildPinCollection = None):
-    """
-    Saves the provided collection to the pin collection file associated with the provided guild id. Overwrites existing file if one is found
-    
-    Assumes filenames of the format [guild_id].json
-    """
-
-    if not p_pin_collection:
-        main_logger.error("pin collection not provided. Returning None")
-        return None
-    if not p_pin_collection.guild_id:
-        main_logger.error("pin collection has no associated GuildID - cannot save. Returning None")
-        return None
-    
-    guild_id : int = p_pin_collection.guild_id
-    # target_file_name : str = f'{guild_pins_directory}\\{guild_id}.json'
-    file_name : str = f'{guild_id}.json'
-    abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
-
-    if os.path.isfile(abs_target_file_path):
-        main_logger.debug(f'Found target file. Removing before saving to enable overwrite...')
-        os.remove(abs_target_file_path)
-
-    try:
-        with open(abs_target_file_path, 'wt') as file:
-            json.dump(obj=p_pin_collection, fp=file, cls=GuildPinCollectionJSONEncoder)
-    except IOError as e:
-        main_logger.error(f'Failed to read target file: {abs_target_file_path}\n {e}')
-    
-    main_logger.info(f'Saved {len(p_pin_collection.guild_pins)} pins to file for Guild: {guild_id}')
     
 
 #endregion
