@@ -310,7 +310,7 @@ class GuildPinCollection():
         tag_similarity_threshold : float = 0.8
 
         # Filter Pins by tags
-        if len(p_tags) > 0:
+        if (p_tags) and len(p_tags) > 0:
             def compare_pin_tags(pin : GuildPin):
                 for self_tag in pin.tags:
                     for tag in p_tags:
@@ -322,11 +322,16 @@ class GuildPinCollection():
                             return
             for pin in self.guild_pins:
                 compare_pin_tags(pin)
+            main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on tags')
+        else:
+            main_logger.debug("No GuildPin tag(s) selected for filtering")
         
-        main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on tags')
-        
-        # Filter pins by author
-        final_collection = [pin for pin in final_collection if pin.target_author_global_name in p_author_names]
+        if p_author_names:
+            # Filter pins by author
+            final_collection = [pin for pin in final_collection if pin.target_author_global_name in p_author_names]
+            main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on author')
+        else:
+            main_logger.debug("No GuildPin author(s) selected for filtering")
 
         return final_collection
 

@@ -1,8 +1,8 @@
 import discord
 import logging
 
-from discord import Interaction, InputTextStyle, Message, SelectOption, User, ComponentType, ApplicationContext
-from discord.ui import Modal, InputText, Select, View
+from discord import Interaction, InputTextStyle, Message, SelectOption, User, ComponentType, ApplicationContext, ButtonStyle
+from discord.ui import Modal, InputText, Select, View, Button
 from typing import List, Callable
 
 #region ==== GLOBALS ====
@@ -13,39 +13,56 @@ main_logger = logging.getLogger(name='main_logger')
 class AuthorSelect(Select):
         external_callback : Callable
 
-        def __init__(self, external_callback : Callable = None, select_type = ComponentType.user_select, *, custom_id = None, placeholder = "Select users to filter by", min_values = 1, max_values = 1, options = None, channel_types = None, disabled = False, row = None):
+        def __init__(self, external_callback : Callable = None, select_type = ComponentType.user_select, *, custom_id = None, placeholder = "Select users to filter by", min_values = 0, max_values = 1, options = None, channel_types = None, disabled = False, row = None):
             super().__init__(select_type, custom_id=custom_id, placeholder=placeholder, min_values=min_values, max_values=max_values, options=options, channel_types=channel_types, disabled=disabled, row=row)
             self.external_callback = external_callback
         
         async def callback(self, interaction : Interaction):
-            await self.external_callback()
+            await self.external_callback(interaction)
+
+class SubmitButton(Button):
+    external_callback : Callable
+
+    def __init__(self, p_external_callback : Callable = None, *, style = ButtonStyle.primary, label = None, disabled = False, custom_id = None, url = None, emoji = None, sku_id = None, row = None):
+        super().__init__(style=style, label="Submit", disabled=disabled, custom_id=custom_id, url=url, emoji=emoji, sku_id=sku_id, row=row)
+
+        if p_external_callback:
+            self.external_callback = p_external_callback
+        else:
+            main_logger.error("Submit button not provided an external callback")
+    
+    async def callback(self, interaction : Interaction):
+        self.style = ButtonStyle.green
+
+        await self.external_callback(interaction)
+        
 
 class PinListView(View):
-    parent_message : Message
-
     external_callback : Callable
     ctx : ApplicationContext
 
+    parent_interaction : Interaction
+
     tags_select : Select
-    is_tags_select_submitted : bool
     tags_select_options : List[SelectOption]
+    tags_select_values : List[str]
     
     authors_select : Select
-    is_authors_select_submitted : bool
-    author_select_values : List[User]
+    authors_select_values : List[User]
 
-    
+    submit_button : SubmitButton
 
     def __init__(self, ctx : ApplicationContext, p_collection_tags : List[str] = None, p_external_callback : Callable = None):
         super().__init__()
+
+        # Set initial values
         self.ctx = ctx
+        self.parent_interaction = None
 
-        self.parent_message = None
         self.tags_select_options = []
-        self.is_tags_select_submitted = False
+        self.tags_select_values = []
 
-        self.author_select_values = []
-        self.is_authors_select_submitted = False
+        self.authors_select_values = []
 
         if (not p_collection_tags):
             main_logger.debug(f'"None" provided for list of tags from collection.')
@@ -72,27 +89,41 @@ class PinListView(View):
             self.tags_select_options.append(temp_option)
         main_logger.debug(f'Created {len(self.tags_select_options)} SelectOptions for TagSelect dropdown: {[option.value for option in self.tags_select_options]}')
 
+        # Create componens and add to view
         self.tags_select = Select(select_type=discord.ComponentType.string_select, placeholder="Select tags to filter by", options=self.tags_select_options, min_values=0, max_values=len(self.tags_select_options))
-        self.authors_select = AuthorSelect(external_callback=self.handle_author_select_callback, min_values=0, max_values=4)
+        self.authors_select = AuthorSelect(external_callback=self.author_select_callback, min_values=0, max_values=4)
+        self.submit_button = SubmitButton(p_external_callback=self.submission_callback)
 
         self.add_item(self.tags_select)
         self.add_item(self.authors_select)
+        self.add_item(self.submit_button)
     
-    async def handle_tag_select_callback(self):
-        self.is_tags_select_submitted = True
+    async def tag_select_callback(self, interaction : Interaction):
+        selected_tags = self.tags_select.values
+        self.tags_select_values = selected_tags
 
-        if (self.is_tags_select_submitted) and (self.is_authors_select_submitted):
-            self.submission_callback
+        main_logger.debug("PinListView tag selection was submitted.")
+        await interaction.response.send_message(f"Tags selected: {selected_tags}", ephemeral=True)
+        return
     
-    async def handle_author_select_callback(self):
-        self.is_authors_select_submitted = True
+    async def author_select_callback(self, interaction : Interaction):
+        selected_authors = self.authors_select.values
+        self.authors_select_values = selected_authors
+
+        main_logger.debug("PinListView author selection was submitted.")
+        await interaction.response.send_message(f"Users selected: {[user.global_name for user in selected_authors]}", ephemeral=True)
+        return
+
+    async def submission_callback(self, interaction : Interaction = None):
         
-        if (self.is_tags_select_submitted) and (self.is_authors_select_submitted):
-            self.submission_callback
+        if interaction:
+            main_logger.debug("PinListView submitted...")
 
-    def submission_callback(self):
-        # Call external callback
-        self.external_callback(self)
+            # Call external callback
+            await self.external_callback(self)
+        else:
+            main_logger.error("No interaction provided to PinListView submission callback")
+        return
         
 
 class PinCreateModal(Modal):
