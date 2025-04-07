@@ -57,7 +57,7 @@ async def callback_pin_list_view(p_pin_list_view : PinListView = None, interacti
     for pin in refined_pins:
         final_string = f'{final_string} \n {pin.get_display_string()}'
     
-    await interaction.response.send_message(f'# Pin List \n #- Disappears in 30s \n\n {final_string}', delete_after=30)
+    await interaction.response.send_message(f'# Pin List \n -# Disappears in 30s \n\n {final_string}', delete_after=30)
 
 
 async def callback_pin_create_modal(p_pin_create_modal : PinCreateModal, p_interaction : Interaction):
