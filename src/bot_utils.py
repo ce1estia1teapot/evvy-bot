@@ -173,7 +173,7 @@ class GuildPin():
     def get_display_string(self):
         target_date_string : str = f'{self.target_creation_time.month}/{self.target_creation_time.day}/{self.target_creation_time.year}'        
         
-        final_string : str = {f' **{self.title}** \n Author: {self.target_author_global_name} \n -# Message Creation Time: {target_date_string} \n -# {self.tags} \n {self.description} \n `{self.target_message_contents}`'}
+        final_string : str = f'__**Title: {self.title}**__\n-# Tags: {self.tags}\n-# Creation Time: {target_date_string} \nAuthor: {self.target_author_global_name} \nDescription: {self.description} \n```{self.target_message_contents}```'
         return final_string
     
     def get_keyword_score(self, p_keywords : List[str] = None) -> int:
