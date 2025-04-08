@@ -11,7 +11,7 @@ from configparser import ConfigParser
 from datetime import datetime as DateTime
 from difflib import SequenceMatcher
 from discord import Client, Guild, Intents, TextChannel
-from typing import Dict, List
+from typing import Dict, List, Self
 
 from enums import GuildPinAddResult, GuildPinRemoveResult
 
@@ -31,6 +31,7 @@ class GuildPin():
     guild_id : int   
     channel_id : int
     message_id : int
+    message_link : str
 
     pin_creation_time : DateTime
     title : str
@@ -43,7 +44,7 @@ class GuildPin():
 
     def __init__(self, p_title : str = None, p_tags : List[str] = None, p_description : str = None, 
                  guild_id : int = None, pin_creation_time : DateTime = None, target_author_global_name : str = None, 
-                 target_creation_time : DateTime = None, message_id : str = None, target_message_contents : str = None,
+                 target_creation_time : DateTime = None, message_id : str = None, message_link : str = None, target_message_contents : str = None,
                  channel_id : int = None):
         """
         Constructs a GuildPin from provided discord messages
@@ -53,6 +54,7 @@ class GuildPin():
         self.guild_id = None
         self.channel_id = None
         self.message_id = None
+        self.message_link = None
 
         self.pin_creation_time = None
         self.title = None
@@ -91,6 +93,8 @@ class GuildPin():
             self.channel_id = channel_id
         if (message_id) and (isinstance(message_id, int)):
             self.message_id = message_id
+        if (message_link) and (isinstance(message_link, str)):
+            self.message_link = message_link
         if (target_message_contents) and (isinstance(target_message_contents, str)):
             self.target_message_contents = target_message_contents
     
@@ -99,6 +103,7 @@ class GuildPin():
             "guild_id" : self.guild_id,
             "channel_id" : self.channel_id,
             "message_id" : self.message_id,
+            "message_link" : self.message_link,
 
             "pin_creation_time" : self.pin_creation_time.isoformat(),
             "title" : self.title,
@@ -125,7 +130,8 @@ class GuildPin():
                    p_description = data["description"], 
                    guild_id = data["guild_id"], 
                    channel_id = data["channel_id"],
-                   message_id = data["message_id"], 
+                   message_id = data["message_id"],
+                   message_link = data["message_link"],
                    pin_creation_time = DateTime.fromisoformat(data["pin_creation_time"]),  
                    target_author_global_name = data["target_author_global_name"], 
                    target_creation_time = DateTime.fromisoformat(data["target_creation_time"]), 
@@ -158,19 +164,25 @@ class GuildPin():
             target_author_global_name = p_target_message.author.global_name
             target_creation_time = p_target_message.created_at
             target_message_id = p_target_message.id
+            message_link = p_target_message.jump_url
             target_message_contents = p_target_message.content
             
             return cls(p_title=p_title, p_tags=p_tags, p_description=p_description, 
                             guild_id=guild_id, channel_id=channel_id, pin_creation_time=pin_creation_time,
                             target_author_global_name=target_author_global_name,
                             target_creation_time=target_creation_time,
-                            message_id=target_message_id, 
+                            message_id=target_message_id,
+                            message_link=message_link,
                             target_message_contents=target_message_contents
                         )
         else:
             main_logger.debug('target_message was None. No info to parse')
         
+    def get_display_string(self):
+        target_date_string : str = f'{self.target_creation_time.month}/{self.target_creation_time.day}/{self.target_creation_time.year}'        
         
+        final_string : str = f'__**Title: {self.title}**__   [Link]({self.message_link})\n-# Tags: {self.tags}\n-# Creation Time: {target_date_string} \nAuthor: {self.target_author_global_name} \nDescription: {self.description} \n```{self.target_message_contents}```'
+        return final_string
     
     def get_keyword_score(self, p_keywords : List[str] = None) -> int:
         """
@@ -297,37 +309,41 @@ class GuildPinCollection():
         else:
             GuildPinRemoveResult.INVALID_PIN_PROVIDED
     
-    def get_refined_collection(self, p_keywords : List[str] = None, p_tags : List[str] = None) -> List[GuildPin]:
+    def get_refined_collection(self, p_tags : List[str] = None, p_author_names : List[str] = None) -> List[GuildPin]:
         """
         Returns a filtered list of GuildPins from the collection that are filtered by Tags and sorted by keywords
         """
-        if (len(p_keywords) == 0) and (len(p_tags) == 0):
-            return self.guild_pins
-
-        main_logger.debug("Refining collection based on tags and keywords....")
-
+        
         final_collection : List[GuildPin] = self.guild_pins
         tag_similarity_threshold : float = 0.8
 
         # Filter Pins by tags
-        if len(p_tags) > 0:
+        if (p_tags) and len(p_tags) > 0:
             def compare_pin_tags(pin : GuildPin):
                 for self_tag in pin.tags:
+                    is_tag_found : bool = False
+
                     for tag in p_tags:
                         tag = tag.lower()
                         matcher = difflib.SequenceMatcher(None, self_tag, tag)
                         
-                        if matcher.ratio() < tag_similarity_threshold:
-                            final_collection.remove(pin)
-                            return
+                        if matcher.ratio() > tag_similarity_threshold:
+                            is_tag_found = True
+                    if not is_tag_found:
+                        final_collection.remove(self_tag)
+
             for pin in self.guild_pins:
-                compare_pin_tags(pin)    
-
-        main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on tags')
-
-        # Sort remaining Pins by keyword score
-        if len(p_keywords) > 0:
-            final_collection = sorted(final_collection, key=lambda pin : pin.get_keyword_score(p_keywords), reverse=True)
+                compare_pin_tags(pin)
+            main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on tags')
+        else:
+            main_logger.debug("No GuildPin tag(s) selected for filtering")
+        
+        if p_author_names:
+            # Filter pins by author
+            final_collection = [pin for pin in final_collection if pin.target_author_global_name in p_author_names]
+            main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on author')
+        else:
+            main_logger.debug("No GuildPin author(s) selected for filtering")
 
         return final_collection
 
@@ -345,8 +361,88 @@ class GuildPinCollection():
 
                     if matcher.ratio() <= self.tag_match_threshold:
                         final_tags.append(sample_tag)
-        
         return final_tags
+    
+    @classmethod
+    def retrieve_guild_pin_collection_from_file(cls, p_guild_id : int = None) -> Self:
+        """
+        Retrieves guild pins from file if one exists. If not, creates one and hands it back
+        
+        Assumes filenames of the format [guild_id].json
+        """
+        # abs_target_file_path : str = f'{guild_pins_directory}\\{p_guild_id}.json'
+        file_name : str = f'{p_guild_id}.json'
+        abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
+
+        # Guard clauses
+        if (not p_guild_id):
+            main_logger.debug("No guild ID provided")
+            return None    
+        if not os.path.isdir(guild_pins_directory):
+            os.mkdir(guild_pins_directory)
+        if not os.path.isfile(abs_target_file_path):
+            main_logger.debug(f'No GuildPinCollection file found for GuildID {p_guild_id}. Creating an empty one.')
+
+            with open(abs_target_file_path, 'wt') as file:
+                pass
+        
+        try:
+            with open(abs_target_file_path, 'rt') as file:
+                # TODO: Implement retrieval of GuildPinCollection file contents
+                contents = json.load(file)
+                pin_collection : GuildPinCollection = GuildPinCollection._from_json(contents)
+        
+                # If collection wasn't found on disk
+                if not pin_collection:
+                    main_logger.debug("Pin collection was None after load. Creating an empty one with the provided GuildID")
+                    pin_collection = GuildPinCollection(p_guild_id=p_guild_id, p_guild_pins=[])
+                else:
+                    main_logger.debug(f'Valid pin collection retrieved. Returning: {pin_collection}')
+
+                main_logger.debug(f'Returning GuildPinCollection: {pin_collection}')
+                return pin_collection
+        except json.decoder.JSONDecodeError as e:
+            pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
+
+            main_logger.error(f'Found a file for GuildID {p_guild_id}, but failed to decode JSON file. Returning empty GuildPinCollection')
+            return pin_collection
+        except IOError as e:
+            pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
+
+            main_logger.error(f'Failed to read target file: {abs_target_file_path} \n {e}')
+            return pin_collection
+    
+
+    def save_guild_pin_collection_to_file(self):
+        """
+        Saves the provided collection to the pin collection file associated with the provided guild id. Overwrites existing file if one is found
+        
+        Assumes filenames of the format [guild_id].json
+        """
+
+        if not self:
+            main_logger.error("pin collection not provided. Returning None")
+            return None
+        if not self.guild_id:
+            main_logger.error("pin collection has no associated GuildID - cannot save. Returning None")
+            return None
+        
+        guild_id : int = self.guild_id
+        # target_file_name : str = f'{guild_pins_directory}\\{guild_id}.json'
+        file_name : str = f'{guild_id}.json'
+        abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
+
+        if os.path.isfile(abs_target_file_path):
+            main_logger.debug(f'Found target file. Removing before saving to enable overwrite...')
+            os.remove(abs_target_file_path)
+
+        try:
+            with open(abs_target_file_path, 'wt') as file:
+                json.dump(obj=self, fp=file, cls=GuildPinCollectionJSONEncoder)
+        except IOError as e:
+            main_logger.error(f'Failed to read target file: {abs_target_file_path}\n {e}')
+        
+        main_logger.info(f'Saved {len(self.guild_pins)} pins to file for Guild: {guild_id}')
 
     
 class GuildPinJSONEncoder(json.JSONEncoder):
@@ -390,85 +486,6 @@ def retrieve_bot_token(p_secrets_path : str) -> str:
     else:
         main_logger.error(f'Couldnt find secrets file: {p_secrets_path}')
 
-def retrieve_guild_pin_collection_from_file(p_guild_id : int = None) -> GuildPinCollection | None:
-    """
-    Retrieves guild pins from file if one exists. If not, creates one and hands it back
-    
-    Assumes filenames of the format [guild_id].json
-    """
-    # abs_target_file_path : str = f'{guild_pins_directory}\\{p_guild_id}.json'
-    file_name : str = f'{p_guild_id}.json'
-    abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
-
-    # Guard clauses
-    if (not p_guild_id):
-        main_logger.debug("No guild ID provided")
-        return None    
-    if not os.path.isdir(guild_pins_directory):
-        os.mkdir(guild_pins_directory)
-    if not os.path.isfile(abs_target_file_path):
-        main_logger.debug(f'No GuildPinCollection file found for GuildID {p_guild_id}. Creating an empty one.')
-
-        with open(abs_target_file_path, 'wt') as file:
-            pass
-    
-    try:
-        with open(abs_target_file_path, 'rt') as file:
-            # TODO: Implement retrieval of GuildPinCollection file contents
-            contents = json.load(file)
-            pin_collection : GuildPinCollection = GuildPinCollection._from_json(contents)
-    
-            # If collection wasn't found on disk
-            if not pin_collection:
-                main_logger.debug("Pin collection was None after load. Creating an empty one with the provided GuildID")
-                pin_collection = GuildPinCollection(p_guild_id=p_guild_id, p_guild_pins=[])
-            else:
-                main_logger.debug(f'Valid pin collection retrieved. Returning: {pin_collection}')
-
-            main_logger.debug(f'Returning GuildPinCollection: {pin_collection}')
-            return pin_collection
-    except json.decoder.JSONDecodeError as e:
-        pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
-
-        main_logger.error(f'Found a file for GuildID {p_guild_id}, but failed to decode JSON file. Returning empty GuildPinCollection')
-        return pin_collection
-    except IOError as e:
-        pin_collection = GuildPinCollection(p_guild_id=p_guild_id)
-
-        main_logger.error(f'Failed to read target file: {abs_target_file_path} \n {e}')
-        return pin_collection
-    
-
-def save_guild_pin_collection_to_file(p_pin_collection : GuildPinCollection = None):
-    """
-    Saves the provided collection to the pin collection file associated with the provided guild id. Overwrites existing file if one is found
-    
-    Assumes filenames of the format [guild_id].json
-    """
-
-    if not p_pin_collection:
-        main_logger.error("pin collection not provided. Returning None")
-        return None
-    if not p_pin_collection.guild_id:
-        main_logger.error("pin collection has no associated GuildID - cannot save. Returning None")
-        return None
-    
-    guild_id : int = p_pin_collection.guild_id
-    # target_file_name : str = f'{guild_pins_directory}\\{guild_id}.json'
-    file_name : str = f'{guild_id}.json'
-    abs_target_file_path : str = os.path.join(guild_pins_directory, file_name)
-
-    if os.path.isfile(abs_target_file_path):
-        main_logger.debug(f'Found target file. Removing before saving to enable overwrite...')
-        os.remove(abs_target_file_path)
-
-    try:
-        with open(abs_target_file_path, 'wt') as file:
-            json.dump(obj=p_pin_collection, fp=file, cls=GuildPinCollectionJSONEncoder)
-    except IOError as e:
-        main_logger.error(f'Failed to read target file: {abs_target_file_path}\n {e}')
-    
-    main_logger.info(f'Saved {len(p_pin_collection.guild_pins)} pins to file for Guild: {guild_id}')
     
 
 #endregion

@@ -20,7 +20,7 @@ global evvy_client
 global nissi_naturals_id
 
 #region ==== CLASSES ====
-class NissiBot(discord.Bot):
+class EvvyBot(discord.Bot):
     guild_ids_to_sync : List[str]
 
     def __init__(self, p_guild_ids : List[str] = None, p_intents : discord.Intents = discord.Intents.default(), description=None, *args, **options):
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     nissi_naturals_id : str = '599028360471117861'
 
-    nissi_bot: discord.Bot = NissiBot(p_guild_ids=[nissi_naturals_id], p_intents=intents)
+    nissi_bot: discord.Bot = EvvyBot(p_guild_ids=[nissi_naturals_id], p_intents=intents)
     nissi_bot.add_application_command(test_group)
     nissi_bot.add_application_command(pin_group)
     nissi_bot.run(bot_token)

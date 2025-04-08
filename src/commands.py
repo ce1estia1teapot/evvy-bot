@@ -2,13 +2,13 @@ import discord
 import logging
 
 from discord import ApplicationContext, SlashCommandGroup, Option, Message, User, Interaction
-from discord.ui import Modal
+from discord.ui import Modal, View
 from discord.abc import GuildChannel
 from discord.ext.commands import Bot
 
-from bot_utils import GuildPin, GuildPinCollection, retrieve_guild_pin_collection_from_file, save_guild_pin_collection_to_file
-from typing import List, Callable
-from views import PinListModal, PinCreateModal
+from bot_utils import GuildPin, GuildPinCollection
+from typing import List, Callable, Self
+from views import PinListView, PinCreateModal
 
 #region ==== GLOBALS ====
 global main_logger
@@ -33,17 +33,32 @@ async def subcommand2(ctx : ApplicationContext):
 #endregion
 
 #region ==== CALLBACK FUNCTIONS ====
-def callback_pin_list_modal(p_pin_list_modal : PinListModal, p_interaction : Interaction, p_target_message : Message):
-    if not p_pin_list_modal:
-        main_logger.info('Didnt receive a modal argument')
-    if not isinstance(p_pin_list_modal, PinListModal):
-        main_logger.debug(f'Provided Modal is of the wrong type: {p_pin_list_modal}')
+async def callback_pin_list_view(p_pin_list_view : PinListView = None, interaction : Interaction = None):
+    """
+    Called when the PinListView is submitted
+    """
+    # Extract info
+    selected_tags : List[str] = p_pin_list_view.tags_select.values
+    selected_authors : List[User] = p_pin_list_view.authors_select.values
+    ctx : ApplicationContext = p_pin_list_view.ctx
+    guild_id : int = int(ctx.guild.id)
+
+    # Delete the message containing the view
+    await p_pin_list_view.message.delete(delay=5)
+
+    # Retrieve pin collection
+    pin_collection : GuildPinCollection = GuildPinCollection.retrieve_guild_pin_collection_from_file(guild_id)
+
+    # Refine with submitted values
+    refined_pins : List[GuildPin] = pin_collection.get_refined_collection(p_tags=selected_tags, p_author_names=selected_authors)
     
-    # 1. Extract keywords, tags, and guild info
+    # Display refined pin collection?
+    final_string : str = ''
+    for idx, pin in enumerate(refined_pins):
+        final_string += f'## Pin {idx+1}\n{pin.get_display_string()}\n'
+    
+    await interaction.response.send_message(f'# Pin List\n-# Disappears in 30s \n\n{final_string}', delete_after=45)
 
-    # 2. Retrieve guild pin collection from records
-
-    # 3. Refine pin collection with keywords and tags
 
 async def callback_pin_create_modal(p_pin_create_modal : PinCreateModal, p_interaction : Interaction):
     """
@@ -69,14 +84,14 @@ async def callback_pin_create_modal(p_pin_create_modal : PinCreateModal, p_inter
     main_logger.info(f'Created a new GuildPin from the modal data and target message: {new_guild_pin}')
 
     # Attempt to retrieve pin collection and add new pin
-    pin_collection : GuildPinCollection = retrieve_guild_pin_collection_from_file(p_guild_id=guild_id)
+    pin_collection : GuildPinCollection = GuildPinCollection.retrieve_guild_pin_collection_from_file(p_guild_id=guild_id)
     main_logger.info(f'Retrieved GuildPinCollection from file: {pin_collection}')
 
     pin_collection.add_pin(new_guild_pin)
 
     # Save updated pin collection to disk
     main_logger.debug("Initiating GuildPinCollection file save...")
-    save_guild_pin_collection_to_file(pin_collection)
+    pin_collection.save_guild_pin_collection_to_file()
 
     # Respond with success message
     main_logger.debug("Responding with final success message...")
@@ -93,6 +108,7 @@ async def create(ctx : ApplicationContext, message_link : str = Option(str, "Lin
     """
     Uses the replied-to message (target message) to create a GuildPin and add to corresponding GuildPinCollection
     """
+    main_logger.info("Entered the /pin create event handler")
 
     guild_id : int
     channel_id : int
@@ -110,12 +126,15 @@ async def create(ctx : ApplicationContext, message_link : str = Option(str, "Lin
         target_channel = await ctx.guild.fetch_channel(channel_id)
         target_message = await target_channel.fetch_message(message_id)
     except discord.NotFound:
+        main_logger.error(f'Failed to find the target message.  Guild: {guild_id}  Channel: {channel_id}  Message: {message_id}')
         await ctx.respond("Message not found! Make sure the ID is correct.", ephemeral=True)
         return
     except discord.Forbidden:
+        main_logger.error(f'Insufficient bot permissions to read message history.  Guild: {guild_id}  Channel: {channel_id}  Message: {message_id}')
         await ctx.respond("I don't have permission to read message history!", ephemeral=True)
         return
     except discord.HTTPException:
+        main_logger.error(f'Failed to fetch message. HTTPException.   Guild: {guild_id}  Channel: {channel_id}  Message: {message_id}')
         await ctx.respond("Failed to fetch the message. Please try again.", ephemeral=True)
         return
 
@@ -129,14 +148,17 @@ async def list(ctx : ApplicationContext) -> None:
     """
     A function which lists all pins for the guild in which the command was invoked. Responds with a modal allowing the user to choose options for display
     """
+    main_logger.info("Entered the /pin list event handler")
+
     # Retrieve collection for the guild
-    pin_collection : GuildPinCollection = retrieve_guild_pin_collection_from_file(ctx.guild_id)
+    pin_collection : GuildPinCollection = GuildPinCollection.retrieve_guild_pin_collection_from_file(ctx.guild_id)
 
     # If succcessful, get the tags for that guild and hand to modal constructor
     tags : List[str] = pin_collection.get_collection_tags()
 
-    modal : PinListModal = PinListModal(p_submission_callback=callback_pin_list_modal, p_collection_tags=tags)
-    await ctx.send_modal(modal)
+    view : PinListView = PinListView(ctx=ctx, p_collection_tags=tags, p_external_callback=callback_pin_list_view)
+    sent_message = await ctx.response.send_message("Select the options you want to filter by", view=view, delete_after=15)
+    view.parent_interaction = sent_message
 #endregion
 
     
