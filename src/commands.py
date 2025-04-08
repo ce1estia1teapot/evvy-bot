@@ -44,7 +44,7 @@ async def callback_pin_list_view(p_pin_list_view : PinListView = None, interacti
     guild_id : int = int(ctx.guild.id)
 
     # Delete the message containing the view
-    await p_pin_list_view.message.delete()
+    await p_pin_list_view.message.delete(delay=5)
 
     # Retrieve pin collection
     pin_collection : GuildPinCollection = GuildPinCollection.retrieve_guild_pin_collection_from_file(guild_id)
@@ -54,10 +54,10 @@ async def callback_pin_list_view(p_pin_list_view : PinListView = None, interacti
     
     # Display refined pin collection?
     final_string : str = ''
-    for pin in refined_pins:
-        final_string = f'{final_string} \n {pin.get_display_string()}'
+    for idx, pin in enumerate(refined_pins):
+        final_string += f'## Pin #{idx+1} {pin.get_display_string()} \n'
     
-    await interaction.response.send_message(f'# Pin List \n -# Disappears in 30s \n\n {final_string}', delete_after=30)
+    await interaction.response.send_message(f'# Pin List \n -# Disappears in 30s \n\n {final_string}')
 
 
 async def callback_pin_create_modal(p_pin_create_modal : PinCreateModal, p_interaction : Interaction):
@@ -157,7 +157,7 @@ async def list(ctx : ApplicationContext) -> None:
     tags : List[str] = pin_collection.get_collection_tags()
 
     view : PinListView = PinListView(ctx=ctx, p_collection_tags=tags, p_external_callback=callback_pin_list_view)
-    sent_message = await ctx.respond("Select the options you want to filter by", view=view)
+    sent_message = await ctx.response.send_message("Select the options you want to filter by", view=view, delete_after=15)
     view.parent_interaction = sent_message
 #endregion
 

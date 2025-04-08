@@ -120,7 +120,7 @@ class PinListView(View):
             main_logger.debug("PinListView submitted...")
 
             # Call external callback
-            await self.external_callback(self)
+            await self.external_callback(self, interaction)
         else:
             main_logger.error("No interaction provided to PinListView submission callback")
         return
