@@ -10,6 +10,18 @@ global main_logger
 main_logger = logging.getLogger(name='main_logger')
 
 #region ==== CLASSES ====
+class TagsSelect(Select):
+        external_callback : Callable
+
+        def __init__(self, external_callback : Callable = None, select_type = ComponentType.string_select, *, custom_id = None, placeholder = "Select tags to filter by", min_values = 0, max_values = 1, options = None, channel_types = None, disabled = False, row = None):
+            super().__init__(select_type, custom_id=custom_id, placeholder=placeholder, min_values=min_values, max_values=max_values, options=options, channel_types=channel_types, disabled=disabled, row=row)
+            self.external_callback = external_callback
+        
+        async def callback(self, interaction : Interaction):
+            
+
+            await self.external_callback(interaction)
+
 class AuthorSelect(Select):
         external_callback : Callable
 
@@ -18,6 +30,8 @@ class AuthorSelect(Select):
             self.external_callback = external_callback
         
         async def callback(self, interaction : Interaction):
+            
+
             await self.external_callback(interaction)
 
 class SubmitButton(Button):
@@ -90,7 +104,7 @@ class PinListView(View):
         main_logger.debug(f'Created {len(self.tags_select_options)} SelectOptions for TagSelect dropdown: {[option.value for option in self.tags_select_options]}')
 
         # Create componens and add to view
-        self.tags_select = Select(select_type=discord.ComponentType.string_select, placeholder="Select tags to filter by", options=self.tags_select_options, min_values=0, max_values=len(self.tags_select_options))
+        self.tags_select = TagsSelect(external_callback=self.tag_select_callback, select_type=discord.ComponentType.string_select, placeholder="Select tags to filter by", options=self.tags_select_options, min_values=0, max_values=len(self.tags_select_options))
         self.authors_select = AuthorSelect(external_callback=self.author_select_callback, min_values=0, max_values=4)
         self.submit_button = SubmitButton(p_external_callback=self.submission_callback)
 
@@ -101,22 +115,25 @@ class PinListView(View):
     async def tag_select_callback(self, interaction : Interaction):
         selected_tags = self.tags_select.values
         self.tags_select_values = selected_tags
+        await interaction.response.defer()
 
         main_logger.debug("PinListView tag selection was submitted.")
-        await interaction.response.send_message(f"Tags selected: {selected_tags}", ephemeral=True)
+        # await interaction.response.send_message(f"Tags selected: {selected_tags}", ephemeral=True)
         return
     
     async def author_select_callback(self, interaction : Interaction):
         selected_authors = self.authors_select.values
         self.authors_select_values = selected_authors
+        await interaction.response.defer()
 
         main_logger.debug("PinListView author selection was submitted.")
-        await interaction.response.send_message(f"Users selected: {[user.global_name for user in selected_authors]}", ephemeral=True)
+        # await interaction.response.send_message(f"Users selected: {[user.global_name for user in selected_authors]}", ephemeral=True)
         return
 
     async def submission_callback(self, interaction : Interaction = None):
         
         if interaction:
+            interaction.response.defer()
             main_logger.debug("PinListView submitted...")
 
             # Call external callback

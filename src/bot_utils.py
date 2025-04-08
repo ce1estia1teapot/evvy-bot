@@ -31,6 +31,7 @@ class GuildPin():
     guild_id : int   
     channel_id : int
     message_id : int
+    message_link : str
 
     pin_creation_time : DateTime
     title : str
@@ -43,7 +44,7 @@ class GuildPin():
 
     def __init__(self, p_title : str = None, p_tags : List[str] = None, p_description : str = None, 
                  guild_id : int = None, pin_creation_time : DateTime = None, target_author_global_name : str = None, 
-                 target_creation_time : DateTime = None, message_id : str = None, target_message_contents : str = None,
+                 target_creation_time : DateTime = None, message_id : str = None, message_link : str = None, target_message_contents : str = None,
                  channel_id : int = None):
         """
         Constructs a GuildPin from provided discord messages
@@ -53,6 +54,7 @@ class GuildPin():
         self.guild_id = None
         self.channel_id = None
         self.message_id = None
+        self.message_link = None
 
         self.pin_creation_time = None
         self.title = None
@@ -91,6 +93,8 @@ class GuildPin():
             self.channel_id = channel_id
         if (message_id) and (isinstance(message_id, int)):
             self.message_id = message_id
+        if (message_link) and (isinstance(message_link, str)):
+            self.message_link = message_link
         if (target_message_contents) and (isinstance(target_message_contents, str)):
             self.target_message_contents = target_message_contents
     
@@ -99,6 +103,7 @@ class GuildPin():
             "guild_id" : self.guild_id,
             "channel_id" : self.channel_id,
             "message_id" : self.message_id,
+            "message_link" : self.message_link,
 
             "pin_creation_time" : self.pin_creation_time.isoformat(),
             "title" : self.title,
@@ -125,7 +130,8 @@ class GuildPin():
                    p_description = data["description"], 
                    guild_id = data["guild_id"], 
                    channel_id = data["channel_id"],
-                   message_id = data["message_id"], 
+                   message_id = data["message_id"],
+                   message_link = data["message_link"],
                    pin_creation_time = DateTime.fromisoformat(data["pin_creation_time"]),  
                    target_author_global_name = data["target_author_global_name"], 
                    target_creation_time = DateTime.fromisoformat(data["target_creation_time"]), 
@@ -158,13 +164,15 @@ class GuildPin():
             target_author_global_name = p_target_message.author.global_name
             target_creation_time = p_target_message.created_at
             target_message_id = p_target_message.id
+            message_link = p_target_message.jump_url
             target_message_contents = p_target_message.content
             
             return cls(p_title=p_title, p_tags=p_tags, p_description=p_description, 
                             guild_id=guild_id, channel_id=channel_id, pin_creation_time=pin_creation_time,
                             target_author_global_name=target_author_global_name,
                             target_creation_time=target_creation_time,
-                            message_id=target_message_id, 
+                            message_id=target_message_id,
+                            message_link=message_link,
                             target_message_contents=target_message_contents
                         )
         else:
@@ -173,7 +181,7 @@ class GuildPin():
     def get_display_string(self):
         target_date_string : str = f'{self.target_creation_time.month}/{self.target_creation_time.day}/{self.target_creation_time.year}'        
         
-        final_string : str = f'__**Title: {self.title}**__\n-# Tags: {self.tags}\n-# Creation Time: {target_date_string} \nAuthor: {self.target_author_global_name} \nDescription: {self.description} \n```{self.target_message_contents}```'
+        final_string : str = f'__**Title: {self.title}**__   [Link]({self.message_link})\n-# Tags: {self.tags}\n-# Creation Time: {target_date_string} \nAuthor: {self.target_author_global_name} \nDescription: {self.description} \n```{self.target_message_contents}```'
         return final_string
     
     def get_keyword_score(self, p_keywords : List[str] = None) -> int:
@@ -313,13 +321,17 @@ class GuildPinCollection():
         if (p_tags) and len(p_tags) > 0:
             def compare_pin_tags(pin : GuildPin):
                 for self_tag in pin.tags:
+                    is_tag_found : bool = False
+
                     for tag in p_tags:
                         tag = tag.lower()
                         matcher = difflib.SequenceMatcher(None, self_tag, tag)
                         
-                        if matcher.ratio() < tag_similarity_threshold:
-                            final_collection.remove(pin)
-                            return
+                        if matcher.ratio() > tag_similarity_threshold:
+                            is_tag_found = True
+                    if not is_tag_found:
+                        final_collection.remove(self_tag)
+
             for pin in self.guild_pins:
                 compare_pin_tags(pin)
             main_logger.debug(f'Filtered to ({len(final_collection)}/{len(self.guild_pins)}) pins based on tags')
